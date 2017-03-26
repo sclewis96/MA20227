@@ -7,3 +7,8 @@
 * `git pull upstream master`
 * `git push origin master`
 * On your GitHub repo: `Create pull request`
+
+### Potentially useful links:
+
+* https://help.github.com/articles/fork-a-repo/
+* https://help.github.com/articles/syncing-a-fork/
