@@ -45,7 +45,7 @@ This is your "fork" of `upstream`, which is what you update - the updates are me
 * Re-update from `upstream` for latest changes: `git fetch upstream`, `git checkout master`, `git merge upstream/master`
 * `git push origin master`
 
-#### Merge your fork back into `upstream`
+#### Merge your fork back into `upstream`:
 * On your GitHub repo: `Create pull request`
 * Make title descriptive, useful/humorous comment is mandatory
 
