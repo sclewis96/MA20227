@@ -33,6 +33,7 @@ This is your "fork" of `upstream`, which is what you update - the updates are me
 
 * `git fetch upstream`
 * `git checkout master`
+* `git diff master upstream/master"` (optional: shows what's different between your local `master` branch and the remote's `master`)
 * `git merge upstream/master`
 
 #### Add things to your local copy:
