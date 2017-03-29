@@ -13,13 +13,13 @@ library(gridExtra)
 
 # Select relevant columns from imdb; take numeric columns and put into "long"
 # data format, ready for plotting
-df <- select(imdb, title, score, year, duration, gross, budget, criticreviews,
+plotdf <- select(imdb, title, score, year, duration, gross, budget, criticreviews,
              uservotes, userreviews, country, rating, color, aspect) %>%
     gather(-c(title, score, country, rating, color, aspect),
            key = "var", value = "value")
 
 # Set up plot
-p <- ggplot(df, aes(x = value, y = score)) + geom_point(alpha = 0.07) +
+p <- ggplot(plotdf, aes(x = value, y = score)) + geom_point(alpha = 0.07) +
     #geom_density_2d() + ## This puts on contour lines but I think it's clearer without
     facet_wrap(~ var, scales = "free")
 
