@@ -7,6 +7,112 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Awesome header
+## Abstract
 
-Awesome project stuff to be done right here.
+(Summary of what we wanted to do, and what we've done. To be written later...)
+
+
+
+## 1. Data exploration
+
+The data are provided in a data frame, `imdb`, which contains information about a subset of 3638 films from the IMDb database.
+
+```{r loadData}
+load("imdb.rda")
+
+str(imdb)
+```
+
+We are ultimately interested in the relationship between the IMDb score (recorded as `score`) and the rest of the information which is available.
+
+```{r scoreSummary}
+summary(imdb$score)
+hist(imdb$score, xlim = c(0, 10), prob = TRUE)
+```
+
+blather blather blather
+
+It will also be useful to see the relationship between the score and each of the predictors which might be used in our models. *The code used to produce the subsequent plots can be found in Appendix A.*
+
+```{r explorationPlots, echo = FALSE}
+# Load packages for analysis (you might need to install these:
+# install.packages("dplyr", "tidyr", "ggplot2", "gridExtra")
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+
+# Select relevant columns from imdb; take numeric columns and put into "long"
+# data format, ready for plotting
+plotdf <- select(imdb, title, score, year, duration, gross, budget, criticreviews,
+             uservotes, userreviews, country, rating, color, aspect) %>%
+    gather(-c(title, score, country, rating, color, aspect),
+           key = "var", value = "value")
+
+# Set up plot
+p <- ggplot(plotdf, aes(x = value, y = score)) + geom_point(alpha = 0.07) +
+    #geom_density_2d() + ## This puts on contour lines but I think it's clearer without
+    facet_wrap(~ var, scales = "free")
+
+# Actually plot it
+p + labs(title = "Plots of IMDb score against numerical predictors") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Plot the non-numeric things
+p1 <- qplot(country, score, data = imdb, alpha = I(0.1)) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = rel(0.8)))
+p2 <- qplot(rating, score, data = imdb, alpha = I(0.1)) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = rel(0.8)))
+p3 <- qplot(color, score, data = imdb, alpha = I(0.1))
+p4 <- qplot(aspect, score, data = imdb, alpha = I(0.1))
+grid.arrange(p1, p2, p3, p4, ncol = 2,
+             top = textGrob("Plots of IMDb score against categorical predictors",
+                            gp = gpar(fontface = "bold")))
+```
+
+One seemingly erroneous point is immediately noticeable: the aspect value of 16, which lies well out to the right of the other points. We can easily find which film it belongs to.
+
+```{r}
+imdb[imdb$aspect == 16, ]
+```
+
+Consulting the entry for this film in the online IMDb database, it turns out that the aspect should in fact be 16:9, so we shall amend this.
+
+```{r}
+imdb$aspect[3539] <- 16/9
+```
+
+Let's have a look at a couple more plots which might reveal potentially interesting relationships among the predictors.
+
+```{r}
+plot(imdb$budget, imdb$gross, pch = 20, main = "Gross vs Budget")
+plot(imdb$duration, imdb$criticreviews, pch = 20,
+     main = "Number of critic reviews vs Duration")
+```
+
+There is a smattering of outlying values in each plot. Further investigation reveals that one of these, the clear outlier in the bottom-right of the Gross vs Budget plot, is in fact another misentered value.
+
+```{r}
+imdb[imdb$budget > 3.5e+08, ]
+```
+
+Again consulting the online database, it seems the budget for this film was actually \$85m, not \$390m as currently recorded. This is easily changed.
+
+```{r}
+imdb$budget[959] <- 8.5e+07
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
