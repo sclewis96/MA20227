@@ -21,7 +21,7 @@ plotdf <- select(imdb, title, score, year, duration, gross, budget, criticreview
 # Set up plot
 p <- ggplot(plotdf, aes(x = value, y = score)) + geom_point(alpha = 0.07) +
     #geom_density_2d() + ## This puts on contour lines but I think it's clearer without
-    facet_wrap(~ var, scales = "free")
+    facet_wrap(~ var, scales = "free") + geom_smooth(method = "lm", col = "red")
 
 # Actually plot it
 p
