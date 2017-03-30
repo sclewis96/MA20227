@@ -1,24 +1,13 @@
-load("imdb.rda")
-library(dplyr)
-imdb$aspect[3539] <- 16/9
-imdb$budget[959] <- 85000000
-df <- select(imdb, title, score, year, duration, gross, budget, criticreviews,
+df <- select(imdc, title, score, year, duration, gross, budget, criticreviews,
              uservotes, userreviews, country, rating, color, aspect)
 lmod <- lm(score ~ . - title, data = df)
 summary(lmod)
-plot(lmod, 1)
-plot(lmod, 2)
+plot(lmod)
 hist(residuals(lmod))
 # Model is under-predicting high scores
-plot(score ~ log(uservotes), data = df)
-library(DescTools)
-identify(score ~ log(uservotes), data = df)
-df[3347, ]
-
-
 
 # Try making relationships more linear
-betterplotdf <- select(imdb, title, score, year, duration, gross, budget, criticreviews,
+betterplotdf <- select(imdc, title, score, year, duration, gross, budget, criticreviews,
                  uservotes, userreviews, country, rating, color, aspect) %>%
     transmute(title, score, year,
               sqrtduration = sqrt(duration), gross, budget,
@@ -34,7 +23,7 @@ bp
 
 
 # Train a model on this new data
-df2 <- select(imdb, title, score, year, duration, gross, budget, criticreviews,
+df2 <- select(imdc, title, score, year, duration, gross, budget, criticreviews,
                        uservotes, userreviews, country, rating, color, aspect) %>%
     transmute(title, score, mmyear = ((year-min(year)) / (max(year)-min(year))),
               duration, gross, budget,
@@ -58,6 +47,7 @@ df3 <- mutate(df2, score = score^2) %>%
 lmod3 <- lm(sqscore ~ . - title, data = df3, subset = -c(2502))
 summary(lmod3)
 plot(lmod3)
+
 hist(residuals(lmod3), breaks = 30)
 
 
