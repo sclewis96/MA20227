@@ -64,3 +64,7 @@ qplot(year, color, data = imdb)
 # Aside: Do films with long titles have better scores?
 df2 <- mutate(imdb, words = sapply(gregexpr("[[:alnum:][:punct:]]+", title), function(x) sum(x > 0)))
 qplot(factor(words), score, data = df2, geom = "boxplot")
+
+
+
+psych::pairs.panels(imdc[c("score", "year", "duration", "gross", "budget", "criticreviews", "uservotes", "userreviews")])

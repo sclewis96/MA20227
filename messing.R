@@ -23,11 +23,13 @@ bp
 
 
 # Train a model on this new data
-df2 <- select(imdc, title, score, year, duration, gross, budget, criticreviews,
-                       uservotes, userreviews, country, rating, color, aspect) %>%
-    transmute(title, score, mmyear = ((year-min(year)) / (max(year)-min(year))),
-              duration, gross, budget,
-              sqrtcriticreviews = sqrt(criticreviews), luservotes = log(uservotes), luserreviews = log(userreviews),
+df2 <- select(imdc, title, score, year, duration, gross, budget,
+                       criticreviews, uservotes, userreviews, country, rating,
+                       color, aspect) %>%
+    transmute(title, score, year, durationdiffsr = sqrt(abs(100 - duration)),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews),
               country, rating, color, aspect)
 
 lmod2 <- lm(score ~ . - title, data = df2, subset = -c(2502))
