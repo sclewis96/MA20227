@@ -3,7 +3,7 @@ df <- select(imdc, title, score, year, duration, gross, budget, criticreviews,
 lmod <- lm(score ~ . - title, data = df)
 summary(lmod)
 plot(lmod)
-hist(residuals(lmod))
+hist(residuals(lmod), breaks = 60)
 # Model is under-predicting high scores
 
 # Try making relationships more linear
@@ -23,14 +23,16 @@ bp
 
 
 # Train a model on this new data
-df2 <- select(imdc, title, score, year, duration, gross, budget, criticreviews,
-                       uservotes, userreviews, country, rating, color, aspect) %>%
-    transmute(title, score, mmyear = ((year-min(year)) / (max(year)-min(year))),
-              duration, gross, budget,
-              sqrtcriticreviews = sqrt(criticreviews), luservotes = log(uservotes), luserreviews = log(userreviews),
-              country, rating, color, aspect)
+df2 <- select(imdc, title, score, year, duration, gross, budget,
+                              criticreviews, uservotes, userreviews, country, rating,
+                              color, aspect) %>%
+  transmute(title, score, year, durationdiffsr = sqrt(abs(100 - duration)),
+            grosssr = sqrt(gross), budget,
+            criticreviewssr = sqrt(criticreviews),
+            uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews),
+            country, rating, color, aspect)
 
-lmod2 <- lm(score ~ . - title, data = df2, subset = -c(2502))
+lmod2 <- lm(score ~ . - title, data = df2, subset = -c(1441))
 summary(lmod2)
 plot(lmod2)
 
@@ -38,13 +40,13 @@ hist(residuals(lmod), breaks = 30)
 hist(residuals(lmod2), breaks = 30)
 # Still some problems with underpredicting high scores
 # Let's look at scores
-hist(imdb$score)
-hist(imdb$score^2)
+hist(imdc$score)
+hist(imdc$score^2)
 
 df3 <- mutate(df2, score = score^2) %>%
     rename(sqscore = score)
     
-lmod3 <- lm(sqscore ~ . - title, data = df3, subset = -c(2502))
+lmod3 <- lm(sqscore ~ . - title, data = df3)
 summary(lmod3)
 plot(lmod3)
 
