@@ -36,22 +36,24 @@ p3 <- qplot(color, score, data = imdb, alpha = I(0.1))
 p4 <- qplot(aspect, score, data = imdb, alpha = I(0.1))
 grid.arrange(p1, p2, p3, p4, ncol = 2)
 
+# Remove two dodgy points
+imdc <- filter(imdc, aspect < 10, budget < 3.5e+08)
 
-#=== Do we fix values?
-
-# Strange point in the aspect plot... incorrect value?
-imdc[imdc$aspect == 16, ]
-# Double-check this on IMDb website - turns out it should be 16:9
-imdc$aspect[imdc$aspect == 16] <- 16/9
-p4 <- qplot(aspect, score, data = imdb, alpha = I(0.1))
-p4
-# Another dodgy point on far right of budget-score plot?
-imdc[which.max(imdc$budget), ]
-
-# This should actually be $85m
-imdc$budget[which.max(imdc$budget)] <- 8.5e+07
-
-#===
+# #=== Do we fix values?
+# 
+# # Strange point in the aspect plot... incorrect value?
+# imdc[imdc$aspect == 16, ]
+# # Double-check this on IMDb website - turns out it should be 16:9
+# imdc$aspect[imdc$aspect == 16] <- 16/9
+# p4 <- qplot(aspect, score, data = imdb, alpha = I(0.1))
+# p4
+# # Another dodgy point on far right of budget-score plot?
+# imdc[which.max(imdc$budget), ]
+# 
+# # This should actually be $85m
+# imdc$budget[which.max(imdc$budget)] <- 8.5e+07
+# 
+# #===
 
 
 # Have a look at some other potentially interesting relationships
