@@ -7,20 +7,7 @@ hist(residuals(lmod))
 # Model is under-predicting high scores
 
 # Try making relationships more linear
-betterplotdf <- select(imdc, title, score, year, duration, gross, budget, criticreviews,
-                 uservotes, userreviews, country, rating, color, aspect) %>%
-    transmute(title, score, year,
-              sqrtduration = sqrt(duration), gross, budget,
-              srcriticreviews = sqrt(criticreviews), sruservotes = sqrt(uservotes), sruserreviews = sqrt(userreviews),
-              country, rating, color, aspect) %>%
-    gather(-c(title, score, country, rating, color, aspect),
-           key = "var", value = "value")
-
-bp <- ggplot(betterplotdf, aes(x = value, y = score)) + geom_point(alpha = 0.07) +
-    facet_wrap(~ var, scales = "free") + geom_smooth(method = "lm", col = "red")
-
-bp
-
+source("linearisation.R")
 
 # Train a model on this new data
 df2 <- select(imdc, title, score, year, duration, gross, budget,
@@ -54,9 +41,10 @@ hist(residuals(lmod3), breaks = 30)
 
 
 
-nmod <- lm(score ~ 1, data = df)
+nmod <- lm(sqscore ~ 1, data = df3)
 
-step(nmod, scope = list(lower = nmod, upper = lmod), direction = "forward")
+step(lmod3, scope = list(lower = nmod, upper = lmod3), direction = "backward",
+     k = log(11))
 
 
 
@@ -80,3 +68,7 @@ summary(lmodsmall)
 summary(lmod)
 
 nmod <- step(lmod)
+
+lmodsm <- drop1(lmod3) #%>%
+    drop1() %>%
+    drop1()
