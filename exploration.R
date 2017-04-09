@@ -4,6 +4,8 @@ load("imdb.rda")
 # Check for NAs
 sum(is.na(imdb))
 
+load("imdc.rda")
+
 # Load packages for analysis (you might need to install these:
 # install.packages("dplyr", "tidyr", "ggplot2", "gridExtra")
 library(dplyr)
