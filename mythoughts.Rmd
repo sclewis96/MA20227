@@ -1,0 +1,45 @@
+---
+title: "mythoughts"
+author: "Owen Jones"
+date: "12 April 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Part 1
+
+> exploration.R
+> dups.R
+
+Plots of each predictor vs score, plus a couple of extra plots. We spot a couple of outliers and correct them. We also remove duplicated data.
+
+
+## Part 2
+
+> linearisation.R
+
+We fit a model on the numerical predictors. We find we can improve the performance of this model by transforming both the response (use squared score instead of score) and some of the predictors (square rooting). Spotting where to do this is largely empirical, but we can justify our decisions with statistics.
+
+**We may be able to further improve the model with interactions.**
+
+We then fit a model (`fullmod`) using the transformed predictors and the unedited factor variables `color`, `aspect` (which we *could* convert to a factor, but will consider a numeric), `country` and `rating`. This model seemingly performs reasonably well - at least, better than a null model and better than the model of all predictors added untransformed. We check $R^2$ values and diagnostic plots, which are still very poor but better.
+
+(e.g. The residuals-fitted plot is appalling... much smaller residuals for larger fitted values. This is a consequence of huge variation in data for films rated 4-8ish, but much less variation for high-rated films. We don't seem to be able to do much about this.)
+
+However, we notice that some factors have levels with only one point, which is undoubtedly leading to overfitting of the data.
+
+
+## Part 3
+
+> regsubsets.R
+
+We use `regsubsets` from the `leaps` package to find the best model of each size, up to a maximum of 25 predictors (a generous limit, given that we are attempting to simplify our model).
+
+By comparing the AIC of each of these models we attempt to identify significant changes in model quality, and subsequently find reasonable models based on 9 and 3 predictors. Justified by using Occam's Razor.
+
+We also consider BIC: this, unlike AIC, has a minimum value corresponding to a model with 14 predictors.
+
+
