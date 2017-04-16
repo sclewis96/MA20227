@@ -307,14 +307,37 @@ tslmod2 <- lm(sqscore ~ . - title, tsdf, subset = -c(1415, 3477))
 summary(tslmod2)
 ```
 
-This has a better adjusted $R^2$ than both `tslmod` suggesting it was sensible to remove the outlying points. It also has a better adjusted $R^2$ than `fullmod`, despite the greater amount of predictors and therefore information `fullmod` was trained on. This is no doubt due to the huge expansion of the factor variables; in the next section we will address this issue, but for now we will re-fit `fullmod` using the transformed numerical data and omitting the outlying points.
+This has a better adjusted $R^2$ than both `tslmod` suggesting it was sensible to remove the outlying points. It also has a better adjusted $R^2$ than `fullmod`, despite the greater amount of predictors and therefore information `fullmod` was trained on. This is no doubt due to the huge expansion of the factor variables. We will address this issue in Section 3.
+
+
+#### 2.3 Interactions
+
+Given the large number of predictors, there are an almighty number of possible interactions whc=ich could be added to the model. First let's check for strongly-correlated predictors. The upper triangle of the following figure is the correlation matrix of the numeric predictors; the lower half is scatterplots of each pair; and the diagonal shows histograms of each predictor.
+
+```{r}
+library(psych)
+pairs.panels(tsdf[c("year", "durationsr", "grosssr", "budget",
+                    "criticreviewssr", "uservotessr", "userreviewssr")])
+```
+
+We will add the five strongest correlations as interactions in our model. Three of these are obvious linear relationships between user and critic votes and reviews. The others can be easily interpreted in the context of film: high-budget films are often well-advertised, leading to large gross takings at the box office and concurrently many votes from filmgoers.
+
+
+#### 2.4 Re-fitting the full model
+
+We now re-fit `fullmod` by returning the factor variables to `tsdf`, adding the interaction predictors and removing the two outlying points we identified earlier.
 
 ```{r}
 fulldf <- mutate(tsdf, color = imdc$color, aspect = imdc$aspect,
                  country = imdc$country, rating = imdc$rating)
-fullmod <- lm(sqscore ~ . - title, fulldf, subset = -c(1415, 3477))
+fullmod <- lm(sqscore ~ . - title + uservotessr:userreviewssr +
+                  criticreviewssr:uservotessr + criticreviewssr:userreviewssr +
+                  grosssr:budget + grosssr:uservotessr,
+              fulldf, subset = -c(1415, 3477))
 summary(fullmod)
 ```
+
+The adjusted $R^2$ score is still low, but is significantly better than the first time we fitted the model. Of course, the score a given film receives from a user is highly subjective; for such a difficult task, the adjusted $R^2$ is not terrible. In the following section we will aim to further improve and simplify the model.
 
 
 
