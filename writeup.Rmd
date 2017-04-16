@@ -38,7 +38,7 @@ Looking at the distribution of scores we can see the mean rating of the films in
 It will also be useful to see the relationship between the score and each of the predictors which might be used in our models.
 *The code used to produce the subsequent plots can be found in Appendix A.*
 
-```{r explorationPlots, echo = FALSE, warnings = FALSE}
+```{r explorationPlots, echo = FALSE, warning = FALSE}
 # Load packages for analysis
 library(dplyr)
 library(tidyr)
@@ -72,6 +72,7 @@ grid.arrange(p1, p2, p3, p4, ncol = 2,
              top = textGrob("Plots of IMDb score against categorical predictors",
                             gp = gpar(fontface = "bold")))
 ```
+
 
 #### 1.1 Replacing incorrect values
 
@@ -107,6 +108,7 @@ Again consulting the online database, it seems the budget for this film was actu
 imdb$budget[959] <- 8.5e+07
 ```
 
+
 #### 1.2 Duplicated entries
 
 There are also multiple titles which appear more than once in the dataset.
@@ -141,15 +143,44 @@ imdc <- group_by(imdb, title) %>%
 We now have a new data frame, `imdc`, which is identical to `imdb` but with each title now only appearing once. All the following analyses and models will be based on this tidied dataset.
 
 
+
 ## 2. Initial model
 
+We are now in a position to begin training linear models on the data. Initially we will train a model on the full set of predictor variables.
+
+```{r}
+fulldf <- select(imdc, title, score, year, duration, gross, budget,
+               criticreviews, uservotes, userreviews, aspect, rating,
+               country, color)
+
+# Exclude title, which is a label rather than a predictor
+fullmod <- lm(score ~ . - title, fulldf)
+
+# Inspect the model
+summary(fullmod)
+```
+
+Immediately we notice that the factor variables `country` and `rating` are each expanded into many dummy variables by `lm()`, and that many of these new dummy predictors appear to contribute very little. Moreover, the fairly poor adjusted $R^2$ score indicates that the model is currently not explaining much of the variance in the data.
+
+Before continuing, it would be wise to check the diagnostic plots of the model.
+
+```{r, warning = FALSE}
+par(mfrow = c(2, 2))
+plot(fullmod)
+```
+
+The issues with our model become more obvious. The negative trend in the residuals-fitted plot shows that the model predicts high scores too generously. The spread of variance in residuals is also very uneven. This is largely a consequence of the concentration of film scores at approximately 6: there are a great deal more points there, so we are likely to see a higher variance. Nonetheless we may be able to reduce the severity of the issue.
+
+The Q-Q plot of standardised residuals also reveals that the distribution of residuals is most certainly not normal. Considering the fact that normally-distributed residuals form important underlying assumption of the entire linear modelling process, this is something we must try to remedy. Additionally, the residuals-leverage plot reveals multiple points with unusually high leverage.
+
+Working from this base model we can now begin to take steps to improve the model's performance.
 
 
 #### 2.1 Transforming numeric predictors
 
 By its very design, a linear model will perform better the closer to linear the relationship between each numeric predictor and the response. However, it appears that the relationship between some of the predictors and the score is **not** linear; and therefore we may be able to improve the performance of the model by somehow transforming the data.
 
-The decision of which transformations to apply is largely an empirical process. Given that the model is consistently underpredicting high scores, we try squaring the response variable to encourage the model to correct this.
+The decision of which transformations to apply is largely an empirical process. Given that the model is consistently overpredicting high scores, we try squaring the response variable to encourage the model to correct this.
 
 We also apply square root transformations to some of the predictors. For count variables such as `uservotes` this choice can be explained, at least in part, by the fact that counts are often approximately Poisson distributed, and square-rooting is an effective method of improving the symmetry of this distribution. For non-count variables such as `duration`, square-rooting simply improves the fit of the resulting model.
 
@@ -160,7 +191,8 @@ The following plots show linear regression lines for the original and transforme
 
 p + geom_smooth(method = "lm", col = "red") +
     labs(title = "Score vs Predictors") +
-    theme(plot.title = element_text(hjust = 0.5, size = rel(1.5), face = "bold"))
+    theme(plot.title = element_text(hjust = 0.5, size = rel(1.5),
+                                    face = "bold"))
 
 
 #==== Linearised ====
@@ -172,7 +204,8 @@ betterplotdf <- select(imdc, title, score, year, duration, gross, budget,
     transmute(title, sqscore = (score^2), year, durationsr = sqrt(duration),
               grosssr = sqrt(gross), budget,
               criticreviewssr = sqrt(criticreviews),
-              uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews),
+              uservotessr = sqrt(uservotes),
+              userreviewssr = sqrt(userreviews),
               country, rating, color, aspect) %>%
     gather(-c(title, sqscore, country, rating, color, aspect),
            key = "var", value = "value")
@@ -181,7 +214,8 @@ bp <- ggplot(betterplotdf, aes(x = value, y = sqscore)) +
     geom_point(alpha = 0.07) + geom_smooth(method = "lm", col = "magenta") +
     facet_wrap(~ var, scales = "free") +
     labs(title = "Squared Score vs Linearised Predictors") +
-    theme(plot.title = element_text(face = "bold", hjust = 0.5, size = rel(1.5)))
+    theme(plot.title = element_text(face = "bold", hjust = 0.5,
+                                    size = rel(1.5)))
 
 bp
 
@@ -190,7 +224,8 @@ bp
 
 # Mostly empirical! Looking at plots and trying to spot trends
 
-# Example of predictor which is hard to linearise: duration. How should we transform it?
+# Example of predictor which is hard to linearise: duration. How should we
+# transform it?
 
 #   Base:
 m1 <- lm((score^2) ~ duration - 1, imdc)
@@ -201,10 +236,93 @@ m3 <- lm((score^2) ~ sqrt(abs(duration-90)) - 1, imdc)
 
 # Compare RSS for these models
 anova(m1, m2, m3)
-# m2 is smallest, so we'll square-root duration
+# m2 has smallest RSS, so we'll square-root duration
 ```
 
-#### 2.2 Collapsing factors
+Now we can compare the performance of linear models fitted on the untransformed and transformed numerical predictors.
+
+```{r}
+# Train models on variations of (numeric) data:
+#   s = score^2 as response
+#   t = transformed predictors
+
+df <- select(imdc, title, score, year, duration, gross, budget,
+             criticreviews, uservotes, userreviews)
+
+tdf <- select(imdc, title, score, year, duration, gross, budget,
+              criticreviews, uservotes, userreviews) %>%
+    transmute(title, score, year, durationsr = sqrt(duration),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews))
+
+sdf <- select(imdc, title, score, year, duration, gross, budget,
+              criticreviews, uservotes, userreviews) %>%
+    mutate(score = score^2) %>% rename(sqscore = score)
+
+tsdf <- select(imdc, title, score, year, duration, gross, budget,
+               criticreviews, uservotes, userreviews) %>%
+    transmute(title, sqscore = (score^2), year, durationsr = sqrt(duration),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews))
+
+lmod <- lm(score ~ . - title, df)
+tlmod <- lm(score ~ . - title, tdf)
+slmod <- lm(sqscore ~ . - title, sdf)
+tslmod <- lm(sqscore ~ . - title, tsdf)
+
+# Compare RSS for the models
+sum(residuals(lmod)^2)
+sum((sqrt(sdf$sqscore) - sqrt(fitted(slmod)))^2)
+sum(residuals(tlmod)^2)
+sum((sqrt(tsdf$sqscore) - sqrt(fitted(tslmod)))^2)
+
+# {squared score} ~ {transformed predictors} is best, as hoped!
+```
+
+We can also compare the diagnostic plots of the new model with those of the base model.
+
+```{r}
+par(mfrow = c(2, 2))
+plot(tslmod)
+```
+
+The new model shows significant improvements. We still have a slight negative trend in the residuals-fitted plot but the effect is markedly less pronounced (the issue with spread of variance remains, but it is all but impossible to fix this for the reasons described earlier). The Q-Q plot shows that the model's residuals are now distributed much closer to normally.
+
+The high-leverage points have also disappeared, although as we will see shortly that this is due to the omission of factor predictors in this model.
+
+There are two outliers, particularly evident in Q-Q plot: rows 1415 and 3475.
+
+```{r}
+tsdf[c(1415, 3477), ]
+```
+
+Justin Bieber: Never Say Never makes an appearance, along with the marvellous documentary Winged Migration - at opposite ends of the spectrum in terms of score. In particular, according to our model the former should have a much higher score than it actually does. Given that the featured celebrity tends to divide opinion (one of this report's authors created an IMDb account with the sole intention of giving that particular film a score of 1), it is perhaps not surprising that our model is overly sympathetic in its predicted score.
+
+Let's fit our model with these two points omitted, and look at the summary.
+
+```{r}
+tslmod2 <- lm(sqscore ~ . - title, tsdf, subset = -c(1415, 3477))
+summary(tslmod2)
+```
+
+This has a better adjusted $R^2$ than both `tslmod` suggesting it was sensible to remove the outlying points. It also has a better adjusted $R^2$ than `fullmod`, despite the greater amount of predictors and therefore information `fullmod` was trained on. This is no doubt due to the huge expansion of the factor variables; in the next section we will address this issue, but for now we will re-fit `fullmod` using the transformed numerical data and omitting the outlying points.
+
+```{r}
+fulldf <- mutate(tsdf, color = imdc$color, aspect = imdc$aspect,
+                 country = imdc$country, rating = imdc$rating)
+fullmod <- lm(sqscore ~ . - title, fulldf, subset = -c(1415, 3477))
+summary(fullmod)
+```
+
+
+
+## 3. Simplifying the initial model
+
+#### 3.1 Selecting smaller models with AIC
+
+#### 3.2 Manually "collapsing" factor predictors
 
 
 
