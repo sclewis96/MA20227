@@ -5,11 +5,14 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+set.seed(2017)
 ```
 
 ## Abstract
 
 (Summary of what we wanted to do, and what we've done. To be written later...)
+
+This is essentially Part 6 of the coursework spec.
 
 
 
@@ -27,16 +30,16 @@ We are ultimately interested in the relationship between the IMDb score (recorde
 
 ```{r scoreSummary}
 summary(imdb$score)
-hist(imdb$score, xlim = c(0, 10), prob = TRUE)
+hist(imdb$score, xlim = c(0, 10), prob = TRUE, breaks = 30)
 ```
 
-blather blather blather
+Looking at the distribution of scores we can see the mean rating of the films in our dataset is between 6 and 7; this is a consequence of our tendency to treat 6 or 7 as an "average" film rating, rather than 5 (which would arguably be more logical from a mathematician's point of view!).
 
-It will also be useful to see the relationship between the score and each of the predictors which might be used in our models. *The code used to produce the subsequent plots can be found in Appendix A.*
+It will also be useful to see the relationship between the score and each of the predictors which might be used in our models.
+*The code used to produce the subsequent plots can be found in Appendix A.*
 
-```{r explorationPlots, echo = FALSE}
-# Load packages for analysis (you might need to install these:
-# install.packages("dplyr", "tidyr", "ggplot2", "gridExtra")
+```{r explorationPlots, echo = FALSE, warnings = FALSE}
+# Load packages for analysis
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -52,7 +55,6 @@ plotdf <- select(imdb, title, score, year, duration, gross, budget, criticreview
 
 # Set up plot
 p <- ggplot(plotdf, aes(x = value, y = score)) + geom_point(alpha = 0.07) +
-    #geom_density_2d() + ## This puts on contour lines but I think it's clearer without
     facet_wrap(~ var, scales = "free")
 
 # Actually plot it
@@ -71,6 +73,8 @@ grid.arrange(p1, p2, p3, p4, ncol = 2,
                             gp = gpar(fontface = "bold")))
 ```
 
+#### 1.1 Replacing incorrect values
+
 One seemingly erroneous point is immediately noticeable: the aspect value of 16, which lies well out to the right of the other points. We can easily find which film it belongs to.
 
 ```{r}
@@ -80,7 +84,7 @@ imdb[imdb$aspect == 16, ]
 Consulting the entry for this film in the online IMDb database, it turns out that the aspect should in fact be 16:9, so we shall amend this.
 
 ```{r}
-imdb$aspect[3539] <- 16/9
+imdb$aspect[3539] <- 1.78
 ```
 
 Let's have a look at a couple more plots which might reveal potentially interesting relationships among the predictors.
@@ -103,8 +107,104 @@ Again consulting the online database, it seems the budget for this film was actu
 imdb$budget[959] <- 8.5e+07
 ```
 
+#### 1.2 Duplicated entries
+
+There are also multiple titles which appear more than once in the dataset.
+
+```{r}
+dups <- group_by(imdb, title) %>%
+    summarise(count = n()) %>%
+    filter(count > 1)
+nrow(dups)
+# So there are 93 titles appearing more than once...
+# Empirically, it seems different values of uservotes is the main culprit
+
+# See if uservotes is only difference between duplicates
+setdiff(dups$title,
+        imdb$title[select(imdb, -c(uservotes)) %>%
+                       duplicated()])
+
+# No, it isn't in two cases!
+
+filter(imdb, title == "Brothers" |  title == "Cinderella")
+# Brothers: uservotes, actor3 are different
+# Cinderella: uservotes, userreviews are different
+# In both cases, it won't matter which record we keep
+
+# We'll remove duplicates by taking the record with largest uservotes for each
+# title (i.e. the most recent record)
+imdc <- group_by(imdb, title) %>%
+    slice(which.max(uservotes)) %>%
+    ungroup()
+```
+
+We now have a new data frame, `imdc`, which is identical to `imdb` but with each title now only appearing once. All the following analyses and models will be based on this tidied dataset.
 
 
+## 2. Initial model
+
+
+
+#### 2.1 Transforming numeric predictors
+
+By its very design, a linear model will perform better the closer to linear the relationship between each numeric predictor and the response. However, it appears that the relationship between some of the predictors and the score is **not** linear; and therefore we may be able to improve the performance of the model by somehow transforming the data.
+
+The decision of which transformations to apply is largely an empirical process. Given that the model is consistently underpredicting high scores, we try squaring the response variable to encourage the model to correct this.
+
+We also apply square root transformations to some of the predictors. For count variables such as `uservotes` this choice can be explained, at least in part, by the fact that counts are often approximately Poisson distributed, and square-rooting is an effective method of improving the symmetry of this distribution. For non-count variables such as `duration`, square-rooting simply improves the fit of the resulting model.
+
+The following plots show linear regression lines for the original and transformed predictors and response.
+
+```{r}
+#==== As-given ====
+
+p + geom_smooth(method = "lm", col = "red") +
+    labs(title = "Score vs Predictors") +
+    theme(plot.title = element_text(hjust = 0.5, size = rel(1.5), face = "bold"))
+
+
+#==== Linearised ====
+
+# Try making relationships more linear
+betterplotdf <- select(imdc, title, score, year, duration, gross, budget,
+                       criticreviews, uservotes, userreviews, country, rating,
+                       color, aspect) %>%
+    transmute(title, sqscore = (score^2), year, durationsr = sqrt(duration),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews),
+              country, rating, color, aspect) %>%
+    gather(-c(title, sqscore, country, rating, color, aspect),
+           key = "var", value = "value")
+
+bp <- ggplot(betterplotdf, aes(x = value, y = sqscore)) +
+    geom_point(alpha = 0.07) + geom_smooth(method = "lm", col = "magenta") +
+    facet_wrap(~ var, scales = "free") +
+    labs(title = "Squared Score vs Linearised Predictors") +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5, size = rel(1.5)))
+
+bp
+
+
+#==== Aside: how did we decide on linearisation transformations? ====
+
+# Mostly empirical! Looking at plots and trying to spot trends
+
+# Example of predictor which is hard to linearise: duration. How should we transform it?
+
+#   Base:
+m1 <- lm((score^2) ~ duration - 1, imdc)
+#   Square root:
+m2 <- lm((score^2) ~ sqrt(duration) - 1, imdc)
+#   Something fancier: square root of distance from most common duration:
+m3 <- lm((score^2) ~ sqrt(abs(duration-90)) - 1, imdc)
+
+# Compare RSS for these models
+anova(m1, m2, m3)
+# m2 is smallest, so we'll square-root duration
+```
+
+#### 2.2 Collapsing factors
 
 
 
