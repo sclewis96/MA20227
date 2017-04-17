@@ -343,7 +343,88 @@ The adjusted $R^2$ score is still low, but is significantly better than the firs
 
 ## 3. Simplifying the initial model
 
+Due to the inclusion of many-levelled factor predictors, the current model contains a very large number of predictors. Many of these are likely to be statistically insignificant.
+
+Moreover, on closer inspection many levels contain only one data point: `country` is perhaps the most extreme example.
+
+```{r}
+# Check distribution of country
+summary(imdc$country)
+```
+
+Hence many predictors only apply to a single point. This is virtually the textbook definition of overfitting, which will lead to poor results when the model is used to predict unseen scores. Certainly we must ensure that these one-point predictors at the very least are removed from any simplified models.
+
+
 #### 3.1 Selecting smaller models with AIC
+
+Given that we currently have over 50 predictors in the model, a "top-down" `step()`-style approach is unlikely to reduce our model to a satisfactory size. Moreover, `step()` keeps staunchly to its numeric-assessment-based approach, and therefore does a poor job of recognising the endemic overfitting within our model and removing the offending predictors.
+
+Therefore we adopt a somewhat more natural approach, founded on the principle of Occam's Razor, whereby we will add predictors to an initially empty model. The `regsubsets()` function in the `leaps` package allows us to find the "best" model (according to Akaike's An Information Criterion, or AIC) of each size. We find such models up to an arbitrary limit of 25 predictors - a generous limit given that we wish to find a "simple" model.
+
+```{r, warning = FALSE}
+# Set up a data frame with transformed predictors
+imdd <- select(imdc, title, score, year, duration, gross, budget,
+               criticreviews, uservotes, userreviews, color, aspect, country,
+               rating) %>%
+    transmute(title, sqscore = (score^2), year, durationsr = sqrt(duration),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews),
+              color, aspect, country, rating) %>%
+    filter(!(title %in% c("Justin Bieber: Never Say Never",
+                          "Winged Migration")))
+
+# Let's find the best model of each size up to 25 predictors
+library(leaps)
+modselect <- regsubsets(sqscore ~ . - title + uservotessr:userreviewssr +
+                            criticreviewssr:uservotessr +
+                            criticreviewssr:userreviewssr +
+                            grosssr:budget + grosssr:uservotessr,
+                        imdd, nvmax = 25, really.big = TRUE)
+```
+
+We can now calculate the AIC of each of these models according to the formula
+
+$$-2 \{\text{maximised log-likelihood}\} + 2  \{\text{number of parameters, including intercept}\} +  \text{(constant)}$$
+
+which for linear models is equivalent to
+
+$$n \log\left(\frac{RSS}{n}\right) + 2  \{\text{number of parameters, including intercept}\} +  \text{(constant)}$$
+
+We can subsequently plot these AIC scores against model size.
+
+```{r}
+n <- nrow(imdd)
+ms_out <- summary(modselect)
+
+plot(1:25, n*log(ms_out$rss/n) + 2*(2:26), type = "o", main = "AIC vs size",
+     xlab = "Number of predictors (not including intercept)", ylab = "AIC")
+```
+
+Notice that over this range of sizes, adding predictors consistently reduces (improves) the AIC score of the model - `step()` would have faltered long before reaching this stage. Therefore this is not a simple case of choosing the model with the lowest AIC and we shall have to be slightly more subjective in our selection of a smaller model.
+
+We take the approach that two distinct "elbows" can be seen in the plot, at 3 and (less markedly) 9 predictors. After each of these points the rate of improvement of the model with the addition of each extra predictor becomes smaller. Again abiding by Occam's Razor we select these model sizes to study in more detail.
+
+Firstly we consider the "reduced" model with 9 predictors.
+
+```{r}
+# Which predictors are used?
+which(ms_out$which[9, ])
+
+# We need to make a binary variable
+imdd$ratingPG13 <- as.numeric(imdd$rating == "PG-13")
+
+rmod <- lm(sqscore ~ year + durationsr + grosssr + budget + criticreviewssr +
+               uservotessr + userreviewssr + grosssr:budget + ratingPG13, imdd)
+summary(rmod)
+
+```
+
+Notice that this model performs almost as well as `fullmod` did earlier, according to adjusted $R^2$. Aditionally the troublesome one-point predictors have all been eliminated.
+
+
+NOW DO 3 PREDICTORS YAYAYAYAYAYAYA but lunch first.
+
 
 #### 3.2 Manually "collapsing" factor predictors
 

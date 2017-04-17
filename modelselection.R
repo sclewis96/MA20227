@@ -10,7 +10,8 @@ df <- select(imdc, title, score, year, duration, gross, budget,
 tdf <- select(imdc, title, score, year, duration, gross, budget,
               criticreviews, uservotes, userreviews) %>%
     transmute(title, score, year, durationsr = sqrt(duration),
-              grosssr = sqrt(gross), budget, criticreviewssr = sqrt(criticreviews),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
               uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews))
 
 sdf <- select(imdc, title, score, year, duration, gross, budget,
@@ -20,7 +21,8 @@ sdf <- select(imdc, title, score, year, duration, gross, budget,
 tsdf <- select(imdc, title, score, year, duration, gross, budget,
                criticreviews, uservotes, userreviews) %>%
     transmute(title, sqscore = (score^2), year, durationsr = sqrt(duration),
-              grosssr = sqrt(gross), budget, criticreviewssr = sqrt(criticreviews),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
               uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews))
 
 lmod <- lm(score ~ . - title, df)
@@ -44,7 +46,7 @@ plot(tslmod)
 # Let's fit our model not including these points and look at the summary
 mod <- lm(sqscore ~ . - title, tsdf, subset = -c(3475, 1415))
 summary(mod)
-# This has a better adjusted R^2 than tslmod too :)
+# This has a better adjusted R^2 than tslmod too
 
 
 

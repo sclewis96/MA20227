@@ -9,7 +9,8 @@ imdd <- select(imdc, title, score, year, duration, gross, budget,
 
 # Let's find the best model of each size up to 25 predictors
 library(leaps)
-msel <- regsubsets(sqscore ~ . - title, imdd, nvmax = 25, really.big = TRUE)
+msel <- regsubsets(sqscore ~ . - title + grosssr:uservotessr + criticreviewssr:userreviewssr +
+                       grosssr:budget, imdd, nvmax = 25, really.big = TRUE)
 
 # What does it look like if we plot the AIC of each model?
 plot(1:25, 3539*log(summary(msel)$rss/3539) + 2*(2:26), type = "o")
@@ -21,12 +22,11 @@ plot(1:25, 3539*log(summary(msel)$rss/3539) + 2*(2:26), type = "o")
 
 which(summary(msel)$which[9, ])
 
-# We need to make some binary variables
-imdd$countryUK <- as.numeric(imdd$country == "UK")
+# We need to make a binary variable
 imdd$ratingPG13 <- as.numeric(imdd$rating == "PG-13")
 
 rmod <- lm(sqscore ~ year + durationsr + grosssr + budget + criticreviewssr +
-               uservotessr + userreviewssr + countryUK + ratingPG13, imdd)
+               uservotessr + userreviewssr + grosssr:budget + ratingPG13, imdd)
 summary(rmod)
 
 # Now 3 predictors
@@ -35,7 +35,7 @@ tmod <- lm(sqscore ~ budget + uservotessr + durationsr, imdd)
 summary(tmod)
 
 # Compare AIC of models against:
-fullmod <- lm(sqscore ~ . - title - ratingPG13 - countryUK, imdd)
+fullmod <- lm(sqscore ~ . - title - ratingPG13, imdd)
 nullmod <- lm(sqscore ~ 1, imdd)
 
 AIC(fullmod, rmod, tmod, nullmod)
@@ -54,16 +54,19 @@ plot(1:25, 3539*log(summary(msel)$rss/3539) + log(3539)*(2:26), type = "o")
 
 # Now we can see a minimum...
 which.min(3539*log(summary(msel)$rss/3539) + log(3539)*(2:26))
-# ... corresponding to the model with 13 predictors (+ intercept)
-which(summary(msel)$which[13, ])
+# ... corresponding to the model with 16 predictors (+ intercept)
+which(summary(msel)$which[16, ])
 # Add binary predictors for variables we need
+imdd$countryUK <- as.numeric(imdd$country == "UK")
 imdd$countryNZ <- as.numeric(imdd$country == "New Zealand")
-imdd$ratingPG <- as.numeric(imdd$rating == "PG")
+imdd$ratingG <- as.numeric(imdd$rating == "G")
 imdd$ratingR <- as.numeric(imdd$rating == "R")
+imdd$ratingUnrated <- as.numeric(imdd$rating == "Unrated")
 # Fit a medium-sized model
 mmod <- lm(sqscore ~ year + durationsr + grosssr + budget + criticreviewssr +
                uservotessr + userreviewssr + color + countryNZ + countryUK +
-               ratingPG + ratingPG13 + ratingR, imdd)
+               ratingG + ratingPG13 + ratingR + ratingUnrated +
+               criticreviewssr:userreviewssr + grosssr:budget, imdd)
 summary(mmod)
 
 # Compare BICs
