@@ -27,34 +27,39 @@ createStandardDb <- function(){
   return(imdb.st)
 }
 
+varRefactor <- function(dataFrame, trainingORtesting)
+{
+  #year bins
+  dataFrame$year_BIN <- cut(dataFrame$year, breaks = c(1850, 1960, 1970, 1980, 1990, 2000, 2010, 2020))
+  dataFrame$year <- NULL
+  
+  invisible(dataFrame)# => is not to be printed
+}
+
+
 imdb.st = createStandardDb() #is the standard db
+imdb.st = varRefactor(imdb.st) #bins the years
 
-fullmod <- lm(sqscore ~ . - title, imdb.st)
-summary(fullmod)
+iTesting <- sample(nrow(imdb.st),floor(nrow(imdb.st) * 0.1),replace = FALSE) #90-10 training-testing split
+# actually do the split
+testDb  <- imdb.st[iTesting,]
+trainDb <- imdb.st[-iTesting,]
 
+fullmod <- lm(sqscore ~ . - title, trainDb) #just for reference
 
 # we can use the interactions between predictors to improve the model:
-
 bettermod <- lm(sqscore ~ uservotessr:grosssr + # the more gross => the more exposure => higher ranking films will get a higher proportion of votes
                 uservotessr * userreviewssr + criticreviewssr : userreviewssr # the relation is obvious
                 + budget * grosssr # the relation here is if a film has high gross and low budget => its good and vice versa
-                + year + color + durationsr * standardaspect + continent, imdb.st)
-summary(bettermod)
+                + year_BIN + color + durationsr * standardaspect + continent, trainDb)
 
-plot(bettermod)
+#see how well we predict the result
+scorePredictTr <- predict(bettermod, trainDb)
+plot(abs(sqrt(trainDb$sqscore) - sqrt(scorePredictTr)))
 
-
-
-
-
-
-
-
-
-
-
-
-
+# and now predict the tests 
+scorePredict <- predict(bettermod, testDb)
+plot(abs(sqrt(testDb$sqscore) - sqrt(scorePredict)))
 
 
 
