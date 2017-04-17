@@ -1,15 +1,20 @@
 ---
 title: "IMDtotheB"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = FALSE, eval=FALSE)
+set.seed(2017)
 ```
 
 ## Abstract
 
 (Summary of what we wanted to do, and what we've done. To be written later...)
+
+This is essentially Part 6 of the coursework spec.
 
 
 
@@ -27,16 +32,16 @@ We are ultimately interested in the relationship between the IMDb score (recorde
 
 ```{r scoreSummary}
 summary(imdb$score)
-hist(imdb$score, xlim = c(0, 10), prob = TRUE)
+hist(imdb$score, xlim = c(0, 10), prob = TRUE, breaks = 30)
 ```
 
-blather blather blather
+Looking at the distribution of scores we can see the mean rating of the films in our dataset is between 6 and 7; this is a consequence of our tendency to treat 6 or 7 as an "average" film rating, rather than 5 (which would arguably be more logical from a mathematician's point of view!).
 
-It will also be useful to see the relationship between the score and each of the predictors which might be used in our models. *The code used to produce the subsequent plots can be found in Appendix A.*
+It will also be useful to see the relationship between the score and each of the predictors which might be used in our models.
+*The code used to produce the subsequent plots can be found in Appendix A.*
 
-```{r explorationPlots, echo = FALSE}
-# Load packages for analysis (you might need to install these:
-# install.packages("dplyr", "tidyr", "ggplot2", "gridExtra")
+```{r explorationPlots, echo = FALSE, warning = FALSE}
+# Load packages for analysis
 library(dplyr)
 library(tidyr)
 library(ggplot2)
@@ -52,7 +57,6 @@ plotdf <- select(imdb, title, score, year, duration, gross, budget, criticreview
 
 # Set up plot
 p <- ggplot(plotdf, aes(x = value, y = score)) + geom_point(alpha = 0.07) +
-    #geom_density_2d() + ## This puts on contour lines but I think it's clearer without
     facet_wrap(~ var, scales = "free")
 
 # Actually plot it
@@ -71,6 +75,9 @@ grid.arrange(p1, p2, p3, p4, ncol = 2,
                             gp = gpar(fontface = "bold")))
 ```
 
+
+#### 1.1 Replacing incorrect values
+
 One seemingly erroneous point is immediately noticeable: the aspect value of 16, which lies well out to the right of the other points. We can easily find which film it belongs to.
 
 ```{r}
@@ -80,7 +87,7 @@ imdb[imdb$aspect == 16, ]
 Consulting the entry for this film in the online IMDb database, it turns out that the aspect should in fact be 16:9, so we shall amend this.
 
 ```{r}
-imdb$aspect[3539] <- 16/9
+imdb$aspect[3539] <- 1.78
 ```
 
 Let's have a look at a couple more plots which might reveal potentially interesting relationships among the predictors.
@@ -104,15 +111,545 @@ imdb$budget[959] <- 8.5e+07
 ```
 
 
+#### 1.2 Duplicated entries
+
+There are also multiple titles which appear more than once in the dataset.
+
+```{r}
+dups <- group_by(imdb, title) %>%
+    summarise(count = n()) %>%
+    filter(count > 1)
+nrow(dups)
+# So there are 93 titles appearing more than once...
+# Empirically, it seems different values of uservotes is the main culprit
+
+# See if uservotes is only difference between duplicates
+setdiff(dups$title,
+        imdb$title[select(imdb, -c(uservotes)) %>%
+                       duplicated()])
+
+# No, it isn't in two cases!
+
+filter(imdb, title == "Brothers" |  title == "Cinderella")
+# Brothers: uservotes, actor3 are different
+# Cinderella: uservotes, userreviews are different
+# In both cases, it won't matter which record we keep
+
+# We'll remove duplicates by taking the record with largest uservotes for each
+# title (i.e. the most recent record)
+imdc <- group_by(imdb, title) %>%
+    slice(which.max(uservotes)) %>%
+    ungroup()
+```
+
+We now have a new data frame, `imdc`, which is identical to `imdb` but with each title now only appearing once. All the following analyses and models will be based on this tidied dataset.
+
+
+
+## 2. Initial model
+
+We are now in a position to begin training linear models on the data. Initially we will train a model on the full set of predictor variables.
+
+```{r}
+fulldf <- select(imdc, title, score, year, duration, gross, budget,
+               criticreviews, uservotes, userreviews, aspect, rating,
+               country, color)
+
+# Exclude title, which is a label rather than a predictor
+fullmod <- lm(score ~ . - title, fulldf)
+
+# Inspect the model
+summary(fullmod)
+```
+
+Immediately we notice that the factor variables `country` and `rating` are each expanded into many dummy variables by `lm()`, and that many of these new dummy predictors appear to contribute very little. Moreover, the fairly poor adjusted $R^2$ score indicates that the model is currently not explaining much of the variance in the data.
+
+Before continuing, it would be wise to check the diagnostic plots of the model.
+
+```{r, warning = FALSE}
+par(mfrow = c(2, 2))
+plot(fullmod)
+```
+
+The issues with our model become more obvious. The negative trend in the residuals-fitted plot shows that the model predicts high scores too generously. The spread of variance in residuals is also very uneven. This is largely a consequence of the concentration of film scores at approximately 6: there are a great deal more points there, so we are likely to see a higher variance. Nonetheless we may be able to reduce the severity of the issue.
+
+The Q-Q plot of standardised residuals also reveals that the distribution of residuals is most certainly not normal. Considering the fact that normally-distributed residuals form important underlying assumption of the entire linear modelling process, this is something we must try to remedy. Additionally, the residuals-leverage plot reveals multiple points with unusually high leverage.
+
+Working from this base model we can now begin to take steps to improve the model's performance.
+
+
+#### 2.1 Transforming numeric predictors
+
+By its very design, a linear model will perform better the closer to linear the relationship between each numeric predictor and the response. However, it appears that the relationship between some of the predictors and the score is **not** linear; and therefore we may be able to improve the performance of the model by somehow transforming the data.
+
+The decision of which transformations to apply is largely an empirical process. Given that the model is consistently overpredicting high scores, we try squaring the response variable to encourage the model to correct this.
+
+We also apply square root transformations to some of the predictors. For count variables such as `uservotes` this choice can be explained, at least in part, by the fact that counts are often approximately Poisson distributed, and square-rooting is an effective method of improving the symmetry of this distribution. For non-count variables such as `duration`, square-rooting simply improves the fit of the resulting model.
+
+The following plots show linear regression lines for the original and transformed predictors and response.
+
+```{r}
+#==== As-given ====
+
+p + geom_smooth(method = "lm", col = "red") +
+    labs(title = "Score vs Predictors") +
+    theme(plot.title = element_text(hjust = 0.5, size = rel(1.5),
+                                    face = "bold"))
+
+
+#==== Linearised ====
+
+# Try making relationships more linear
+betterplotdf <- select(imdc, title, score, year, duration, gross, budget,
+                       criticreviews, uservotes, userreviews, country, rating,
+                       color, aspect) %>%
+    transmute(title, sqscore = (score^2), year, durationsr = sqrt(duration),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes),
+              userreviewssr = sqrt(userreviews),
+              country, rating, color, aspect) %>%
+    gather(-c(title, sqscore, country, rating, color, aspect),
+           key = "var", value = "value")
+
+bp <- ggplot(betterplotdf, aes(x = value, y = sqscore)) +
+    geom_point(alpha = 0.07) + geom_smooth(method = "lm", col = "magenta") +
+    facet_wrap(~ var, scales = "free") +
+    labs(title = "Squared Score vs Linearised Predictors") +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5,
+                                    size = rel(1.5)))
+
+bp
+
+
+#==== Aside: how did we decide on linearisation transformations? ====
+
+# Mostly empirical! Looking at plots and trying to spot trends
+
+# Example of predictor which is hard to linearise: duration. How should we
+# transform it?
+
+#   Base:
+m1 <- lm((score^2) ~ duration - 1, imdc)
+#   Square root:
+m2 <- lm((score^2) ~ sqrt(duration) - 1, imdc)
+#   Something fancier: square root of distance from most common duration:
+m3 <- lm((score^2) ~ sqrt(abs(duration-90)) - 1, imdc)
+
+# Compare RSS for these models
+anova(m1, m2, m3)
+# m2 has smallest RSS, so we'll square-root duration
+```
+
+Now we can compare the performance of linear models fitted on the untransformed and transformed numerical predictors.
+
+```{r}
+# Train models on variations of (numeric) data:
+#   s = score^2 as response
+#   t = transformed predictors
+
+df <- select(imdc, title, score, year, duration, gross, budget,
+             criticreviews, uservotes, userreviews)
+
+tdf <- select(imdc, title, score, year, duration, gross, budget,
+              criticreviews, uservotes, userreviews) %>%
+    transmute(title, score, year, durationsr = sqrt(duration),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews))
+
+sdf <- select(imdc, title, score, year, duration, gross, budget,
+              criticreviews, uservotes, userreviews) %>%
+    mutate(score = score^2) %>% rename(sqscore = score)
+
+tsdf <- select(imdc, title, score, year, duration, gross, budget,
+               criticreviews, uservotes, userreviews) %>%
+    transmute(title, sqscore = (score^2), year, durationsr = sqrt(duration),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews))
+
+lmod <- lm(score ~ . - title, df)
+tlmod <- lm(score ~ . - title, tdf)
+slmod <- lm(sqscore ~ . - title, sdf)
+tslmod <- lm(sqscore ~ . - title, tsdf)
+
+# Compare RSS for the models
+sum(residuals(lmod)^2)
+sum((sqrt(sdf$sqscore) - sqrt(fitted(slmod)))^2)
+sum(residuals(tlmod)^2)
+sum((sqrt(tsdf$sqscore) - sqrt(fitted(tslmod)))^2)
+
+# {squared score} ~ {transformed predictors} is best, as hoped!
+```
+
+We can also compare the diagnostic plots of the new model with those of the base model.
+
+```{r}
+par(mfrow = c(2, 2))
+plot(tslmod)
+```
+
+The new model shows significant improvements. We still have a slight negative trend in the residuals-fitted plot but the effect is markedly less pronounced (the issue with spread of variance remains, but it is all but impossible to fix this for the reasons described earlier). The Q-Q plot shows that the model's residuals are now distributed much closer to normally.
+
+The high-leverage points have also disappeared, although as we will see shortly that this is due to the omission of factor predictors in this model.
+
+There are two outliers, particularly evident in Q-Q plot: rows 1415 and 3475.
+
+```{r}
+tsdf[c(1415, 3477), ]
+```
+
+Justin Bieber: Never Say Never makes an appearance, along with the marvellous documentary Winged Migration - at opposite ends of the spectrum in terms of score. In particular, according to our model the former should have a much higher score than it actually does. Given that the featured celebrity tends to divide opinion (one of this report's authors created an IMDb account with the sole intention of giving that particular film a score of 1), it is perhaps not surprising that our model is overly sympathetic in its predicted score.
+
+Let's fit our model with these two points omitted, and look at the summary.
+
+```{r}
+tslmod2 <- lm(sqscore ~ . - title, tsdf, subset = -c(1415, 3477))
+summary(tslmod2)
+```
+
+This has a better adjusted $R^2$ than both `tslmod` suggesting it was sensible to remove the outlying points. It also has a better adjusted $R^2$ than `fullmod`, despite the greater amount of predictors and therefore information `fullmod` was trained on. This is no doubt due to the huge expansion of the factor variables. We will address this issue in Section 3.
+
+
+#### 2.3 Interactions
+
+Given the large number of predictors, there are an almighty number of possible interactions whc=ich could be added to the model. First let's check for strongly-correlated predictors. The upper triangle of the following figure is the correlation matrix of the numeric predictors; the lower half is scatterplots of each pair; and the diagonal shows histograms of each predictor.
+
+```{r}
+library(psych)
+pairs.panels(tsdf[c("year", "durationsr", "grosssr", "budget",
+                    "criticreviewssr", "uservotessr", "userreviewssr")])
+```
+
+We will add the five strongest correlations as interactions in our model. Three of these are obvious linear relationships between user and critic votes and reviews. The others can be easily interpreted in the context of film: high-budget films are often well-advertised, leading to large gross takings at the box office and concurrently many votes from filmgoers.
+
+
+#### 2.4 Re-fitting the full model
+
+We now re-fit `fullmod` by returning the factor variables to `tsdf`, adding the interaction predictors and removing the two outlying points we identified earlier.
+
+```{r}
+fulldf <- mutate(tsdf, color = imdc$color, aspect = imdc$aspect,
+                 country = imdc$country, rating = imdc$rating)
+fullmod <- lm(sqscore ~ . - title + uservotessr:userreviewssr +
+                  criticreviewssr:uservotessr + criticreviewssr:userreviewssr +
+                  grosssr:budget + grosssr:uservotessr,
+              fulldf, subset = -c(1415, 3477))
+summary(fullmod)
+```
+
+The adjusted $R^2$ score is still low, but is significantly better than the first time we fitted the model. Of course, the score a given film receives from a user is highly subjective; for such a difficult task, the adjusted $R^2$ is not terrible. In the following section we will aim to further improve and simplify the model.
+
+
+
+## 3. Simplifying the initial model
+
+Due to the inclusion of many-levelled factor predictors, the current model contains a very large number of predictors. Many of these are likely to be statistically insignificant.
+
+Moreover, on closer inspection many levels contain only one data point: `country` is perhaps the most extreme example.
+
+```{r}
+# Check distribution of country
+summary(imdc$country)
+```
+
+Hence many predictors only apply to a single point. This is virtually the textbook definition of overfitting, which will lead to poor results when the model is used to predict unseen scores. Certainly we must ensure that these one-point predictors at the very least are removed from any simplified models.
+
+
+#### 3.1 Selecting smaller models with AIC
+
+Given that we currently have over 50 predictors in the model, a "top-down" `step()`-style approach is unlikely to reduce our model to a satisfactory size. Moreover, `step()` keeps staunchly to its numeric-assessment-based approach, and therefore does a poor job of recognising the endemic overfitting within our model and removing the offending predictors.
+
+Therefore we adopt a somewhat more natural approach, founded on the principle of Occam's Razor, whereby we will add predictors to an initially empty model. The `regsubsets()` function in the `leaps` package allows us to find the "best" model (according to Akaike's An Information Criterion, or AIC) of each size. We find such models up to an arbitrary limit of 25 predictors - a generous limit given that we wish to find a "simple" model.
+
+```{r, warning = FALSE}
+# Set up a data frame with transformed predictors
+imdd <- select(imdc, title, score, year, duration, gross, budget,
+               criticreviews, uservotes, userreviews, color, aspect, country,
+               rating) %>%
+    transmute(title, sqscore = (score^2), year, durationsr = sqrt(duration),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews),
+              color, aspect, country, rating) %>%
+    filter(!(title %in% c("Justin Bieber: Never Say Never",
+                          "Winged Migration")))
+
+# Let's find the best model of each size up to 25 predictors
+library(leaps)
+modselect <- regsubsets(sqscore ~ . - title + uservotessr:userreviewssr +
+                            criticreviewssr:uservotessr +
+                            criticreviewssr:userreviewssr +
+                            grosssr:budget + grosssr:uservotessr,
+                        imdd, nvmax = 25, really.big = TRUE)
+```
+
+We can now calculate the AIC of each of these models according to the formula
+
+$$-2 \{\text{maximised log-likelihood}\} + 2  \{\text{number of parameters, including intercept}\} +  \text{(constant)}$$
+
+which for linear models is equivalent to
+
+$$n \log\left(\frac{RSS}{n}\right) + 2  \{\text{number of parameters, including intercept}\} +  \text{(constant)}$$
+
+We can subsequently plot these AIC scores against model size.
+
+```{r}
+n <- nrow(imdd)
+ms_out <- summary(modselect)
+
+plot(1:25, n*log(ms_out$rss/n) + 2*(2:26), type = "o", main = "AIC vs size",
+     xlab = "Number of predictors (not including intercept)", ylab = "AIC")
+```
+
+Notice that over this range of sizes, adding predictors consistently reduces (improves) the AIC score of the model - `step()` would have faltered long before reaching this stage. Therefore this is not a simple case of choosing the model with the lowest AIC and we shall have to be slightly more subjective in our selection of a smaller model.
+
+We take the approach that two distinct "elbows" can be seen in the plot, at 3 and (less markedly) 9 predictors. After each of these points the rate of improvement of the model with the addition of each extra predictor becomes smaller. Again abiding by Occam's Razor we select these model sizes to study in more detail.
+
+Firstly we consider the "reduced" model with 9 predictors.
+
+```{r}
+# Which predictors are used?
+which(ms_out$which[9, ])
+
+# We need to make a binary variable
+imdd$ratingPG13 <- as.numeric(imdd$rating == "PG-13")
+
+rmod <- lm(sqscore ~ year + durationsr + grosssr + budget + criticreviewssr +
+               uservotessr + userreviewssr + grosssr:budget + ratingPG13, imdd)
+summary(rmod)
+
+```
+
+Notice that this model performs almost as well as `fullmod` did earlier, according to adjusted $R^2$. Aditionally the troublesome one-point predictors have all been eliminated.
+
+Let's also inspect the "tiny" model with only 3 predictors.
+
+```{r}
+which(ms_out$which[3, ])
+tmod <- lm(sqscore ~ budget + uservotessr + durationsr, imdd)
+summary(tmod)
+
+# Compare AIC of smaller models against a model with intercept only
+nullmod <- lm(sqscore ~ 1, imdd)
+
+AIC(fullmod, rmod, tmod, nullmod)
+
+# Common-sense check that AIC() is doing what we think it is: difference between
+# hand-calculated values for tmod and rmod
+3539*log(summary(msel)$rss[3]/3539) + 2*4 -
+    (3539*log(summary(msel)$rss[9]/3539) + 2*10)
+# Difference between AIC() values
+AIC(tmod) - AIC(rmod)
+# All is well! Only difference is in positive constant in definition of AIC
+```
+
+Observe that `rmod` has an AIC score very close to `fullmod`, but uses approximately six times fewer predictors and avoids the overfitting issues we saw earlier. In addition `tmod` performs almost as well using only 3 predictors.
+
+
+#### 3.2 Manually "collapsing" factor predictors
+
+We can take a different approach to reduce the number of levels in factor predictors which involves manually grouping similar levels - for example, grouping ratings into "kid-friendly" and "not kid-friendly". Details can be found in Appendix B, but seeing as we ultimately did not manage to make significant improvements to the models from Section 3.1 we do not include the results here.
+
+```{r, include = FALSE}
+#==== Factor variables ====
+
+# Let's move on to our factor variables...
+
+# aspect is given to us as a numeric, but really it should probably be a factor
+# since it only takes certain values
+summary(factor(imdc$aspect))
+ggplot(imdc, aes(factor(aspect), score)) + geom_point(alpha = 0.2)
+
+# A lot of these aspects only have 1 point... clearly a model trained on this
+# factor will overfit our data!
+# Let's see if we can remove this issue and simultaneously simplify our factor
+# by 'collapsing' the factor i.e. collecting similar groups
+imdc$standardaspect <- imdc$aspect %in% c(1.85, 2.35)
+
+# Let's compare some models
+amod <- lm(score ~ aspect - 1, imdc)
+bmod <- lm(score ~ factor(aspect) - 1, imdc)
+cmod <- lm(score ~ standardaspect - 1, imdc)
+# Fit a constant model for comparison
+nmod <- lm(score ~ 1, imdc)
+AIC(amod, bmod, cmod, nmod)
+
+# standardaspect is, perhaps surprisingly, almost as good as aspect - and it
+# removes the overfitting problem
+
+
+# Now let's do something similar for rating:
+summary(imdc$rating)
+ggplot(imdc, aes(rating, score)) + geom_point(alpha = 0.2)
+
+# "Kid-friendly" films might get worse scores? ...
+imdc$kidfriendly <- imdc$rating %in% c("G", "GP", "PG", "PG-13")
+
+dmod <- lm(score ~ rating - 1, imdc)
+emod <- lm(score ~ kidfriendly - 1, imdc)
+AIC(dmod, emod, nmod)
+
+# So the kidfriendly model has a marginally better AIC - it is much simpler too!
+# Again this is likely to reduce the problem of overfitting, so this is good :)
+
+
+# And now for country...
+summary(imdc$country)
+ggplot(imdc, aes(country, score)) + geom_point(alpha = 0.2) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+
+# LOADS of countries with only 1 film. Surefire recipe for extreme overfitting!
+# Perhaps it's significant if a country has or hasn't released many films
+imdc$manyfilms <- NULL
+countrycounts <- group_by(imdc, country) %>%
+    summarise(manyfilms = (n() > 5))
+
+imdc <- right_join(imdc, countrycounts, by = "country")
+
+fmod <- lm(score ~ country - 1, imdc)
+gmod <- lm(score ~ manyfilms - 1, imdc)
+AIC(fmod, gmod, nmod)
+
+# That doesn't seem to be much good. It's worse than the null model!
+# What about grouping countries by continent?
+library(countrycode)
+imdc$continent <- factor(countrycode(imdc$country, "country.name", "continent"))
+summary(imdc$continent)
+
+# We've managed to group up countries, so we shouldn't overfit too badly
+hmod <- lm(score ~ continent - 1, imdc)
+AIC(fmod, hmod, nmod)
+
+# Much better than before. Still worse than the model using country, but we know
+# that that model is overfitting, so this seems to be a good compromise!
+
+
+# Our last factor variable is color. This is already a binary factor so we can
+# happily leave it as it is!
+```
+
+
+
+## 4. Interpreting the reduced model
+
+
+## 5. Further analysis: [Witty and amusing question to be inserted here]
 
 
 
 
 
 
+\pagebreak
+
+## Appendix A: Plots of score vs predictors
+
+```{r, eval = FALSE}
+# Select relevant columns from imdb; take numeric columns and put into "long"
+# data format, ready for plotting
+plotdf <- select(imdb, title, score, year, duration, gross, budget, criticreviews,
+             uservotes, userreviews, country, rating, color, aspect) %>%
+    gather(-c(title, score, country, rating, color, aspect),
+           key = "var", value = "value")
+
+# Set up plot
+p <- ggplot(plotdf, aes(x = value, y = score)) + geom_point(alpha = 0.07) +
+    facet_wrap(~ var, scales = "free")
+
+# Actually plot it
+p + labs(title = "Plots of IMDb score against numerical predictors") +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+
+# Plot the non-numeric things
+p1 <- qplot(country, score, data = imdb, alpha = I(0.1)) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = rel(0.8)))
+p2 <- qplot(rating, score, data = imdb, alpha = I(0.1)) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = rel(0.8)))
+p3 <- qplot(color, score, data = imdb, alpha = I(0.1))
+p4 <- qplot(aspect, score, data = imdb, alpha = I(0.1))
+grid.arrange(p1, p2, p3, p4, ncol = 2,
+             top = textGrob("Plots of IMDb score against categorical predictors",
+                            gp = gpar(fontface = "bold")))
+```
+
+\pagebreak
+
+## Appendix B: Grouping similar factor levels
+
+```{r, eval = FALSE}
+# Let's move on to our factor variables...
+
+# aspect is given to us as a numeric, but really it should probably be a factor
+# since it only takes certain values
+summary(factor(imdc$aspect))
+ggplot(imdc, aes(factor(aspect), score)) + geom_point(alpha = 0.2)
+
+# A lot of these aspects only have 1 point... clearly a model trained on this
+# factor will overfit our data!
+# Let's see if we can remove this issue and simultaneously simplify our factor
+# by 'collapsing' the factor i.e. collecting similar groups
+imdc$standardaspect <- imdc$aspect %in% c(1.85, 2.35)
+
+# Let's compare some models
+amod <- lm(score ~ aspect - 1, imdc)
+bmod <- lm(score ~ factor(aspect) - 1, imdc)
+cmod <- lm(score ~ standardaspect - 1, imdc)
+# Fit a constant model for comparison
+nmod <- lm(score ~ 1, imdc)
+AIC(amod, bmod, cmod, nmod)
+
+# standardaspect is, perhaps surprisingly, almost as good as aspect - and it
+# removes the overfitting problem
 
 
+# Now let's do something similar for rating:
+summary(imdc$rating)
+ggplot(imdc, aes(rating, score)) + geom_point(alpha = 0.2)
+
+# "Kid-friendly" films might get worse scores? ...
+imdc$kidfriendly <- imdc$rating %in% c("G", "GP", "PG", "PG-13")
+
+dmod <- lm(score ~ rating - 1, imdc)
+emod <- lm(score ~ kidfriendly - 1, imdc)
+AIC(dmod, emod, nmod)
+
+# So the kidfriendly model has a marginally better AIC - it is much simpler too!
+# Again this is likely to reduce the problem of overfitting, so this is good :)
 
 
+# And now for country...
+summary(imdc$country)
+ggplot(imdc, aes(country, score)) + geom_point(alpha = 0.2) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5))
+
+# LOADS of countries with only 1 film. Surefire recipe for extreme overfitting!
+# Perhaps it's significant if a country has or hasn't released many films
+imdc$manyfilms <- NULL
+countrycounts <- group_by(imdc, country) %>%
+    summarise(manyfilms = (n() > 5))
+
+imdc <- right_join(imdc, countrycounts, by = "country")
+
+fmod <- lm(score ~ country - 1, imdc)
+gmod <- lm(score ~ manyfilms - 1, imdc)
+AIC(fmod, gmod, nmod)
+
+# That doesn't seem to be much good. It's worse than the null model!
+# What about grouping countries by continent?
+library(countrycode)
+imdc$continent <- factor(countrycode(imdc$country, "country.name", "continent"))
+summary(imdc$continent)
+
+# We've managed to group up countries, so we shouldn't overfit too badly
+hmod <- lm(score ~ continent - 1, imdc)
+AIC(fmod, hmod, nmod)
+
+# Much better than before. Still worse than the model using country, but we know
+# that that model is overfitting, so this seems to be a good compromise!
 
 
+# Our last factor variable is color. This is already a binary factor so we can
+# happily leave it as it is!
+```
