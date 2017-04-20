@@ -22,3 +22,11 @@ rmod.est=sqrt(coef(rmod)[1]+Vyear*coef(rmod)[2]+sqrt(Vduration)*coef(rmod)[3]+sq
 tmod.est=sqrt(coef(tmod)[1]+Vbudget*coef(tmod)[2]+sqrt(Vuservotes)*coef(tmod)[3]+sqrt(Vduration)*coef(tmod)[4])
 # predicts score of 7.72, difference of -0.68
 
+
+
+# Compacted code (it's doing the same thing but we're short on space!)
+vertigo <- data.frame(1958, sqrt(128), sqrt(3200000), 2479000, sqrt(201),
+                      sqrt(267005), sqrt(706), 1)
+names(vertigo) <- names(coef(rmod)[2:9])
+sqrt(predict(rmod, vertigo))
+sqrt(predict(tmod, vertigo))
