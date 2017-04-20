@@ -71,7 +71,7 @@ bmod <- lm(score ~ factor(aspect) - 1, imdc)
 cmod <- lm(score ~ standardaspect - 1, imdc)
 # Fit a constant model for comparison
 nmod <- lm(score ~ 1, imdc)
-BIC(amod, bmod, cmod, nmod)
+AIC(amod, bmod, cmod, nmod)
 
 # standardaspect is, perhaps surprisingly, almost as good as aspect - and it
 # removes the overfitting problem
@@ -86,7 +86,7 @@ imdc$kidfriendly <- imdc$rating %in% c("G", "GP", "PG", "PG-13")
 
 dmod <- lm(score ~ rating - 1, imdc)
 emod <- lm(score ~ kidfriendly - 1, imdc)
-BIC(dmod, emod, nmod)
+AIC(dmod, emod, nmod)
 
 # So the kidfriendly model has a marginally better AIC - it is much simpler too!
 # Again this is likely to reduce the problem of overfitting, so this is good :)
@@ -107,7 +107,7 @@ imdc <- right_join(imdc, countrycounts, by = "country")
 
 fmod <- lm(score ~ country - 1, imdc)
 gmod <- lm(score ~ manyfilms - 1, imdc)
-BIC(fmod, gmod, nmod)
+AIC(fmod, gmod, nmod)
 
 # That doesn't seem to be much good. It's worse than the null model!
 # What about grouping countries by continent?
@@ -117,7 +117,7 @@ summary(imdc$continent)
 
 # We've managed to group up countries, so we shouldn't overfit too badly
 hmod <- lm(score ~ continent - 1, imdc)
-BIC(fmod, hmod, nmod)
+AIC(fmod, hmod, nmod)
 
 # Much better than before. Still worse than the model using country, but we know
 # that that model is overfitting, so this seems to be a good compromise!
