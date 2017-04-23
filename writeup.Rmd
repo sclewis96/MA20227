@@ -90,15 +90,13 @@ Consulting the entry for this film in the online IMDb database, it turns out tha
 imdb$aspect[3539] <- 1.78
 ```
 
-Let's have a look at a couple more plots which might reveal potentially interesting relationships among the predictors.
+Let's have a look at another plot which might reveal a potentially interesting relationship among some predictors.
 
 ```{r}
 plot(imdb$budget, imdb$gross, pch = 20, main = "Gross vs Budget")
-plot(imdb$duration, imdb$criticreviews, pch = 20,
-     main = "Number of critic reviews vs Duration")
 ```
 
-There is a smattering of outlying values in each plot. Further investigation reveals that one of these, the clear outlier in the bottom-right of the Gross vs Budget plot, is in fact another misentered value.
+There is a smattering of outlying values in the plot. Further investigation reveals that one of these, the clear outlier in the bottom-right, is in fact another misentered value.
 
 ```{r}
 imdb[imdb$budget > 3.5e+08, ]
@@ -143,6 +141,13 @@ imdc <- group_by(imdb, title) %>%
 ```
 
 We now have a new data frame, `imdc`, which is identical to `imdb` but with each title now only appearing once. All the following analyses and models will be based on this tidied dataset.
+
+
+#### 1.3 Aside: exaggerating hating
+
+If a film has a high number of user votes but a low score, it would suggest that the film is perhaps unfairly treated as a result of "viral" negative coverage. We can attempt to identify any such films by inspecting the Score vs User Votes plot and looking for points towards the lower-right corner.
+
+In fact, the films with higher numbers of user votes all have high scores, so there is no clear indication of any "exaggerated dislike" for certain films. However we will see some evidence to the contrary later in Section 2.1.
 
 
 
@@ -312,7 +317,7 @@ summary(tslmod2)
 This has a better adjusted $R^2$ than both `tslmod` suggesting it was sensible to remove the outlying points. It also has a better adjusted $R^2$ than `fullmod`, despite the greater amount of predictors and therefore information `fullmod` was trained on. This is no doubt due to the huge expansion of the factor variables. We will address this issue in Section 3.
 
 
-#### 2.3 Interactions
+#### 2.2 Interactions
 
 Given the large number of predictors, there are an almighty number of possible interactions whc=ich could be added to the model. First let's check for strongly-correlated predictors. The upper triangle of the following figure is the correlation matrix of the numeric predictors; the lower half is scatterplots of each pair; and the diagonal shows histograms of each predictor.
 
@@ -325,7 +330,7 @@ pairs.panels(tsdf[c("year", "durationsr", "grosssr", "budget",
 We will add the five strongest correlations as interactions in our model. Three of these are obvious linear relationships between user and critic votes and reviews. The others can be easily interpreted in the context of film: high-budget films are often well-advertised, leading to large gross takings at the box office and concurrently many votes from filmgoers.
 
 
-#### 2.4 Re-fitting the full model
+#### 2.3 Re-fitting the full model
 
 We now re-fit `fullmod` by returning the factor variables to `tsdf`, adding the interaction predictors and removing the two outlying points we identified earlier.
 
@@ -419,10 +424,9 @@ imdd$ratingPG13 <- as.numeric(imdd$rating == "PG-13")
 rmod <- lm(sqscore ~ year + durationsr + grosssr + budget + criticreviewssr +
                uservotessr + userreviewssr + grosssr:budget + ratingPG13, imdd)
 summary(rmod)
-
 ```
 
-Notice that this model performs almost as well as `fullmod` did earlier, according to adjusted $R^2$. Aditionally the troublesome one-point predictors have all been eliminated.
+Notice that this model performs almost as well as `fullmod` did earlier, according to adjusted $R^2$. Aditionally the troublesome one-point predictors have all been eliminated. The only factor-level predictor to be included (`ratingPG13`) is also the least significant.
 
 Let's also inspect the "tiny" model with only 3 predictors.
 
@@ -447,7 +451,15 @@ AIC(tmod) - AIC(rmod)
 
 Observe that `rmod` has an AIC score very close to `fullmod`, but uses approximately six times fewer predictors and avoids the overfitting issues we saw earlier. In addition `tmod` performs almost as well using only 3 predictors.
 
-#** UK number 1, 10th predictor **
+We *can* try to compare the models with an F-ratio test. The small p-value suggests that the predictors we drop to obtain `rmod` were in fact significant.
+
+```{r}
+anova(rmod, fullmod)
+```
+
+However because this test is dependent on the RSS of the models and because `fullmod` overfits the data, the result must be interpreted with caution.
+
+The decision to use 9 predictors in `rmod` was, as mentioned earlier, somewhat empirical. As it turns out, the extra predictor in the best model with 10 predictors was `countryUK` - indicating that whether a film comes from the UK or not is the most useful country predictor. In this sense, then, the UK is indeed number one.
 
 
 #### 3.2 Manually "collapsing" factor predictors
