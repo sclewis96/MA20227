@@ -447,6 +447,8 @@ AIC(tmod) - AIC(rmod)
 
 Observe that `rmod` has an AIC score very close to `fullmod`, but uses approximately six times fewer predictors and avoids the overfitting issues we saw earlier. In addition `tmod` performs almost as well using only 3 predictors.
 
+#** UK number 1, 10th predictor **
+
 
 #### 3.2 Manually "collapsing" factor predictors
 
@@ -458,18 +460,7 @@ We can take a different approach to reduce the number of levels in factor predic
 
 #### 4.1 Interpretation of coefficients
 
-#** NEED TO COME BACK TO THIS **
-
-We can interpret the coefficients of the model as a measure of the weight of each predictor in the model's output. In order for these weights to be comparable we must use predictors lying on the same scale; so we will now re-fit `rmod` on predictors rescaled on $[0, 1]$ (achieved by $x_{scaled} = \frac{x-\text{min}}{\text{max}}$).
-
-```{r}
-imde <- imdd
-# Min-max scale numeric columns
-imde[-c(1, 2, 10, 12, 13)] <- lapply(imdd[-c(1, 2, 10, 12, 13)],
-                                     function(c) {(c-min(c))/max(c)})
-rmod_sc <- lm(sqscore ~ year + durationsr + grosssr + budget + criticreviewssr +
-               uservotessr + userreviewssr + grosssr:budget + ratingPG13, imde)
-```
+** To be done... **
 
 
 
@@ -484,16 +475,39 @@ vertigo <- data.frame(1958, sqrt(128), sqrt(3200000), 2479000, sqrt(201),
 names(vertigo) <- names(coef(rmod)[2:9])
 
 # Actual score is 8.4
-sqrt(predict(rmod, vertigo))
-sqrt(predict(tmod, vertigo))
+sqrt(predict(rmod, vertigo, interval = "prediction"))
+sqrt(predict(tmod, vertigo, interval = "prediction"))
 ```
 
 In this specific case, `rmod` is virtually spot-on with its prediction, and even the simplistic `tmod` makes a prediction 0.7 of the actual score. Although this accuracy is encouraging, we reiterate that much more test data would be needed to carry out a thorough assessment of the model's performance.
+
+** Assessment of uncertainty (prediction intervals!) **
 
 
 
 ## 5. Further analysis: [Witty and amusing question to be inserted here]
 
+```{r}
+gens <- strsplit(imdc$genres, "[|]")
+
+head(gens)
+
+summary(factor(unlist(gens)))
+
+genscores <- data.frame("score" = imdc$score)
+
+for (i in 1:nrow(imdc)) {
+    for (j in 1:length(gens[[i]])) {
+        genscores[i, j+1] <- gens[[i]][j]
+    }
+}
+
+keyvalue <- tidyr::gather(genscores, key = score, value = genre, na.rm = TRUE)
+head(keyvalue)
+
+plot(score ~ factor(genre), keyvalue, las = 2)
+
+```
 
 
 
@@ -610,3 +624,4 @@ AIC(fmod, hmod, nmod)
 # Our last factor variable is color. This is already a binary factor so we can
 # happily leave it as it is!
 ```
+
