@@ -319,7 +319,7 @@ This has a better adjusted $R^2$ than both `tslmod` suggesting it was sensible t
 
 #### 2.2 Interactions
 
-Given the large number of predictors, there are an almighty number of possible interactions whc=ich could be added to the model. First let's check for strongly-correlated predictors. The upper triangle of the following figure is the correlation matrix of the numeric predictors; the lower half is scatterplots of each pair; and the diagonal shows histograms of each predictor.
+Given the large number of predictors, there are an almighty number of possible interactions whcich could be added to the model. First let's check for strongly-correlated predictors. The upper triangle of the following figure is the correlation matrix of the numeric predictors; the lower half is scatterplots of each pair; and the diagonal shows histograms of each predictor.
 
 ```{r}
 library(psych)
@@ -478,7 +478,7 @@ We can take a different approach to reduce the number of levels in factor predic
 
 #### 4.2 Generalisation to unseen data
 
-We unfortunately do not have the space in this report to adequately investigate whether the model performs well in general on unseen data. However we shall check a single case: Alfred Hitchcock's *Vertigo*.
+We unfortunately do not have the space in this report to adequately investigate whether the model performs well in general on unseen data. However we shall check a single case: Alfred Hitchcock's *Vertigo*, which has an IMDb score of 8.4.
 
 ```{r}
 # Data obtained from IMDb/Wikipedia
@@ -491,14 +491,11 @@ sqrt(predict(rmod, vertigo, interval = "prediction"))
 sqrt(predict(tmod, vertigo, interval = "prediction"))
 ```
 
-In this specific case, `rmod` is virtually spot-on with its prediction, and even the simplistic `tmod` makes a prediction 0.7 of the actual score. Although this accuracy is encouraging, we reiterate that much more test data would be needed to carry out a thorough assessment of the model's performance.
+In this specific case, `rmod` is virtually spot-on with a prediction of 8.40, with a 95% prediction interval of (7.28, 9.39). The simplistic `tmod` makes a prediction of 7.72, with a 95% prediction interval of (6.38, 8.86), so rmod outperforms tmod in both accuaracy and reliability here. Although this accuracy is encouraging, we reiterate that much more test data would be needed to carry out a thorough assessment of the model's performance.
 
-** Assessment of uncertainty (prediction intervals!) **
+## 5. Further analysis: Does film genre effect score, budget or year?
 
-
-
-## 5. Further analysis: [Witty and amusing question to be inserted here]
-
+To investigate these relationships regarding genre, we tally up the number films that are tagged as each genre and record their scores, years and budgets.
 ```{r}
 gens <- strsplit(imdc$genres, "[|]")
 
@@ -507,20 +504,29 @@ head(gens)
 summary(factor(unlist(gens)))
 
 genscores <- data.frame("score" = imdc$score)
+genbudgets <- data.frame("budget" = imdc$budget)
+genyears <- data.frame("year" = imdc$year)
 
 for (i in 1:nrow(imdc)) {
     for (j in 1:length(gens[[i]])) {
         genscores[i, j+1] <- gens[[i]][j]
+        genbudgets[i, j+1] <- gens[[i]][j]
+        genyears[i, j+1] <- gens[[i]][j]
     }
 }
 
 keyvalue <- tidyr::gather(genscores, key = score, value = genre, na.rm = TRUE)
+keyvalue2 <- tidyr::gather(genbudgets, key = budget, value = genre, na.rm = TRUE)
+keyvalue3 <- tidyr::gather(genyears, key = year, value = genre, na.rm = TRUE)
+
 head(keyvalue)
+head(keyvalue2)
+head(keyvalue3)
 
 plot(score ~ factor(genre), keyvalue, las = 2)
-
+plot(budget ~ factor(genre), keyvalue2, las = 2)
+plot(year ~ factor(genre), keyvalue3, las = 2)
 ```
-
 
 
 
