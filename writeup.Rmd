@@ -319,7 +319,7 @@ This has a better adjusted $R^2$ than both `tslmod` suggesting it was sensible t
 
 #### 2.2 Interactions
 
-Given the large number of predictors, there are an almighty number of possible interactions whcich could be added to the model. First let's check for strongly-correlated predictors. The upper triangle of the following figure is the correlation matrix of the numeric predictors; the lower half is scatterplots of each pair; and the diagonal shows histograms of each predictor.
+Given the large number of predictors, there are an almighty number of possible interactions which could be added to the model. First let's check for strongly-correlated predictors. The upper triangle of the following figure is the correlation matrix of the numeric predictors; the lower half is scatterplots of each pair; and the diagonal shows histograms of each predictor.
 
 ```{r}
 library(psych)
