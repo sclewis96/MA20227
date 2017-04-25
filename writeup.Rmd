@@ -1,5 +1,10 @@
 ---
-title: "IMDtotheB"
+title: "Draw me like one of your French girls"
+subtitle: "A report on models for IMDb score prediction"
+author:
+- Owen Jones, Artem Yurlov,
+- Sam Lewis, Dave Robjohns
+date: "Spring 2017"
 output:
   pdf_document: default
 ---
@@ -11,10 +16,18 @@ set.seed(2017)
 
 ## Abstract
 
-(Summary of what we wanted to do, and what we've done. To be written later...)
+In the following report we attempt to produce a mathematical model capable of using information about a film to predict its IMDb score.
 
-This is essentially Part 6 of the coursework spec.
+This turns out to be a difficult thing to do; at least, it is difficult to make consistently accurate predictions, owing to the huge amount of variance in the data. As one might expect, film seems to be highly subjective.
 
+After creating the model, we make various attempts to:
+
+a. improve its accuracy, by numerically transforming the information we provide it with
+b. simplify it, by only providing it with a subset of the available information and trying to achieve a similar level of performance
+
+Satisfying both of these goals is not an easy task, given that making progress towards one goal generally leads to making sacrifices in the other. The eventual result is something of a compromise, where we have ensured that we are not overfitting our training data but maintain a reasonable degree of accuracy when making predictions.
+
+In the final section we briefly explore film genres and some trends that become apparent in the data when films are separated by genre.
 
 
 ## 1. Data exploration
@@ -509,9 +522,12 @@ Additionally, a survey of the report's authors suggested that longer films are s
 
 So we now predict the model to look something like this (recall all constants here are positive):
 
-$$ score^2 \approx c_1 \: year + c_2 \: (gross \times budget) + c_3 \: criticreviews + c_4 \: uservotes - c_5 \: userrevies + c_6 \: duration - c_7 \: gross - c_8 \: budget - c_9 \: ratingPG13 $$
+$$ \begin{aligned}
+score^2 \approx c_1 \: year + c_2 & \: (gross \times budget) + c_3 \: criticreviews + c_4 \: uservotes - c_5 userreviews \\
+&+ c_6 \: duration - c_7 \: gross - c_8 \: budget - c_9 \: ratingPG13
+\end{aligned} $$
 
-The signs of coefficients of the linear model are as predicted. Success! The predictors in our fitted model have the same effect on predictions as our intuition suggests.
+The signs of coefficients of the linear model are as predicted- that is, as we had hoped, the predictors in our fitted model have the same effect on predictions as our intuition suggests.
 
 
 #### 4.2 Generalisation to unseen data
@@ -583,7 +599,8 @@ ggplot(keyvalue2, aes(x = genre, y = budget)) +
 
 *Note that (in this plot only) we have made the width of the violins uniform across all genres, so we can better see the trends within each genre rather than across genres.*
 
-Of particular note here are documentaries, which usually have very low budgets; other genres show similar distributions of budget with only a small number of high-budget films in each genre.
+Of particular note here are documentaries, which usually have very low budgets. Also notice the proportion of animations which are high-budget, which is relatively high compared to the other genres. This suggests processing power is more expensive than actors - and generalising, that computers are better than humans. We shall make no attempt to disprove that `rmod` is better than any given film critic.
+
 
 #### 5.3 Year
 
