@@ -533,11 +533,11 @@ In this specific case, `rmod` is virtually spot-on with a prediction of 8.40, wi
 
 
 
-## 5. Further analysis: General genre-al ####?
+## 5. Further analysis: General genre-al *je ne sais quoi*
 
 Often when selecting a film to watch, the genre is an important consideration. If we break down the films in the dataset according to genre then we may be able to reveal some information about the differences between genres.
 
-We'll create violin plots to show the spread of data over time and will highlight a couple of points of interest.
+We'll create violin plots to show the spread of data and will highlight a couple of points of interest about each plot.
 
 ```{r, echo = FALSE}
 gens <- strsplit(imdc$genres, "[|]")
@@ -581,7 +581,7 @@ ggplot(keyvalue2, aes(x = genre, y = budget)) +
     theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
 ```
 
-*Note that here we have made the width of the violins uniform across all genres, so we can better see the trends within each genre rather than across genres.*
+*Note that (in this plot only) we have made the width of the violins uniform across all genres, so we can better see the trends within each genre rather than across genres.*
 
 Of particular note here are documentaries, which usually have very low budgets; other genres show similar distributions of budget with only a small number of high-budget films in each genre.
 
@@ -594,7 +594,7 @@ ggplot(keyvalue3, aes(x = genre, y = year)) +
     theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
 ```
 
-Here the recent boom in creation of documentaries is particularly evident - we have seen already that they are cheap to produce, and according to IMDb score they are well-received by viewers. We can also see a gradual but steady decline in the production of Westerns in recent years, perhaps due to directors being wary of the stereotypes they traditionally portrayed.
+Here the recent boom in creation of documentaries is particularly evident - we have seen already that they are cheap to produce, and according to IMDb score they are well-received by viewers. We can also see a gradual but steady decline in the production of Westerns in recent years, perhaps due to directors being wary of working with the stereotypes they traditionally portray.
 
 
 \pagebreak
