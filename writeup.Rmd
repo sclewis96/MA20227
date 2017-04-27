@@ -9,7 +9,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, eval=FALSE)
+knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
 set.seed(2017)
 ```
 
@@ -33,15 +33,14 @@ In the final section we briefly explore film genres and some trends that become 
 
 The data are provided in a data frame, `imdb`, which contains information about a subset of 3638 films from the IMDb database.
 
-```{r loadData}
+```{r}
 load("imdb.rda")
-
 str(imdb)
 ```
 
 We are ultimately interested in the relationship between the IMDb score (recorded as `score`) and the rest of the information which is available.
 
-```{r scoreSummary}
+```{r}
 summary(imdb$score)
 hist(imdb$score, xlim = c(0, 10), prob = TRUE, breaks = 30)
 ```
@@ -49,7 +48,8 @@ hist(imdb$score, xlim = c(0, 10), prob = TRUE, breaks = 30)
 Looking at the distribution of scores we can see the mean rating of the films in our dataset is between 6 and 7; this is a consequence of our tendency to treat 6 or 7 as an "average" film rating, rather than 5 (which would arguably be more logical from a mathematician's point of view!).
 
 It will also be useful to see the relationship between the score and each of the predictors which might be used in our models.
-*The code used to produce the subsequent plots can be found in Appendix A.*
+
+*The code used to produce the following plots can be found in Appendix A.*
 
 ```{r explorationPlots, echo = FALSE, warning = FALSE}
 # Load packages for analysis
@@ -125,6 +125,7 @@ imdb$budget[959] <- 8.5e+07
 There are also multiple titles which appear more than once in the dataset.
 
 ```{r}
+# Create a data frame of the duplicated entries
 dups <- group_by(imdb, title) %>%
     summarise(count = n()) %>%
     filter(count > 1)
@@ -182,7 +183,7 @@ Immediately we notice that the factor variables `country` and `rating` are each 
 
 Before continuing, it would be wise to check the diagnostic plots of the model.
 
-```{r, warning = FALSE}
+```{r, warning = FALSE, echo = FALSE}
 par(mfrow = c(2, 2))
 plot(fullmod)
 ```
@@ -204,7 +205,9 @@ We also apply square root transformations to some of the predictors. For count v
 
 The following plots show linear regression lines for the original and transformed predictors and response.
 
-```{r}
+*See Appendix B for the code used to generate these plots.*
+
+```{r, echo = FALSE}
 #==== As-given ====
 
 p + geom_smooth(method = "lm", col = "red") +
@@ -253,7 +256,7 @@ m2 <- lm((score^2) ~ sqrt(duration) - 1, imdc)
 m3 <- lm((score^2) ~ sqrt(abs(duration-90)) - 1, imdc)
 
 # Compare RSS for these models
-anova(m1, m2, m3)
+#anova(m1, m2, m3)
 # m2 has smallest RSS, so we'll square-root duration
 ```
 
@@ -316,7 +319,7 @@ There are two outliers, particularly evident in the Q-Q plot: the films appearin
 tsdf[c(1415, 3477), ]
 ```
 
-*Justin Bieber: Never Say Never* makes an appearance, along with the marvellous documentary *Winged Migration* -- at opposite ends of the spectrum in terms of score. In particular, according to our model the former should have a much higher score than it actually does. Given that the featured celebrity tends to divide opinion (one of this report's authors created an IMDb account with the sole intention of giving that particular film a score of 1), it is perhaps not surprising that our model is overly sympathetic in its predicted score.
+*Justin Bieber: Never Say Never* makes an appearance, along with the documentary *Winged Migration* -- at opposite ends of the spectrum in terms of score. In particular, according to our model the former should have a much higher score than it actually does. Given that the featured celebrity tends to divide opinion (one of this report's authors created an IMDb account with the sole intention of giving that particular film a score of 1), it is perhaps not surprising that our model is overly sympathetic in its predicted score.
 
 Having said that, Mr Bieber does actually appear in another film in the dataset (*Zoolander 2*), and although the model still rates the film more highly than IMDb users do, the residual is much smaller than for *Never Say Never*.
 
@@ -483,8 +486,7 @@ The decision to use 9 predictors in `rmod` was, as mentioned earlier, somewhat e
 
 #### 3.2 Manually "collapsing" factor predictors
 
-We can take a different approach to reduce the number of levels in factor predictors which involves manually grouping similar levels - for example, grouping ratings into "kid-friendly" and "not kid-friendly". Details can be found in Appendix B, but seeing as we ultimately did not manage to make significant improvements to the models from Section 3.1 we do not include the results here.
-
+We can take a different approach to reduce the number of levels in factor predictors which involves manually grouping similar levels - for example, grouping ratings into "kid-friendly" and "not kid-friendly". Details can be found in Appendix C, but seeing as we ultimately did not manage to make significant improvements to the models from Section 3.1 we do not include the results here.
 
 
 ## 4. Assessing the reduced model (`rmod`)
@@ -553,6 +555,8 @@ In this specific case, `rmod` is virtually spot-on with a prediction of 8.40, wi
 Often when selecting a film to watch, the genre is an important consideration. If we break down the films in the dataset according to genre then we may be able to reveal some information about the differences between genres.
 
 We'll create violin plots to show the spread of data and will highlight a couple of points of interest about each plot.
+
+*See Appendix D for the code used to generate the plots in this section.*
 
 ```{r, echo = FALSE}
 gens <- strsplit(imdc$genres, "[|]")
@@ -647,7 +651,64 @@ grid.arrange(p1, p2, p3, p4, ncol = 2,
 
 \pagebreak
 
-## Appendix B: Grouping similar factor levels
+## Appendix B: Plots with linear regression lines
+
+```{r, eval = FALSE}
+#==== As-given ====
+
+p + geom_smooth(method = "lm", col = "red") +
+    labs(title = "Score vs Predictors") +
+    theme(plot.title = element_text(hjust = 0.5, size = rel(1.5),
+                                    face = "bold"))
+
+
+#==== Linearised ====
+
+# Try making relationships more linear
+betterplotdf <- select(imdc, title, score, year, duration, gross, budget,
+                       criticreviews, uservotes, userreviews, country, rating,
+                       color, aspect) %>%
+    transmute(title, sqscore = (score^2), year, durationsr = sqrt(duration),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes),
+              userreviewssr = sqrt(userreviews),
+              country, rating, color, aspect) %>%
+    gather(-c(title, sqscore, country, rating, color, aspect),
+           key = "var", value = "value")
+
+bp <- ggplot(betterplotdf, aes(x = value, y = sqscore)) +
+    geom_point(alpha = 0.07) + geom_smooth(method = "lm", col = "magenta") +
+    facet_wrap(~ var, scales = "free") +
+    labs(title = "Squared Score vs Linearised Predictors") +
+    theme(plot.title = element_text(face = "bold", hjust = 0.5,
+                                    size = rel(1.5)))
+
+bp
+
+
+#==== Aside: how did we decide on linearisation transformations? ====
+
+# Mostly empirical! Looking at plots and trying to spot trends
+
+# Example of predictor which is hard to linearise: duration. How should we
+# transform it?
+
+#   Base:
+m1 <- lm((score^2) ~ duration - 1, imdc)
+#   Square root:
+m2 <- lm((score^2) ~ sqrt(duration) - 1, imdc)
+#   Something fancier: square root of distance from most common duration:
+m3 <- lm((score^2) ~ sqrt(abs(duration-90)) - 1, imdc)
+
+# Compare RSS for these models
+anova(m1, m2, m3)
+# m2 has smallest RSS, so we'll square-root duration
+```
+
+\pagebreak
+
+## Appendix C: Grouping similar factor levels
 
 ```{r, eval = FALSE}
 # Let's move on to our factor variables...
@@ -725,3 +786,49 @@ AIC(fmod, hmod, nmod)
 # happily leave it as it is!
 ```
 
+\pagebreak
+
+## Appendix D: Plots in Section 5
+
+```{r, eval = FALSE}
+gens <- strsplit(imdc$genres, "[|]")
+
+# summary(factor(unlist(gens)))
+
+genscores <- data.frame("score" = imdc$score)
+genbudgets <- data.frame("budget" = imdc$budget)
+genyears <- data.frame("year" = imdc$year)
+
+for (i in 1:nrow(imdc)) {
+    for (j in 1:length(gens[[i]])) {
+        genscores[i, j+1] <- gens[[i]][j]
+        genbudgets[i, j+1] <- gens[[i]][j]
+        genyears[i, j+1] <- gens[[i]][j]
+    }
+}
+
+keyvalue1 <- gather(genscores, key = score, value = genre, na.rm = TRUE)
+keyvalue2 <- gather(genbudgets, key = budget, value = genre, na.rm = TRUE)
+keyvalue3 <- gather(genyears, key = year, value = genre, na.rm = TRUE)
+```
+
+```{r, eval = FALSE}
+ggplot(keyvalue1, aes(x = genre, y = score)) +
+    geom_violin(scale = "area", fill = "#dddddd") +
+    labs(x = "Genre", y = "Score") + theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
+```
+
+```{r, eval = FALSE}
+ggplot(keyvalue2, aes(x = genre, y = budget)) +
+    geom_violin(scale = "width", fill = "#dddddd") +
+    labs(x = "Genre", y = "Budget") + theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
+```
+
+```{r, eval = FALSE}
+ggplot(keyvalue3, aes(x = genre, y = year)) +
+    geom_violin(scale = "area", fill = "#dddddd") +
+    labs(x = "Genre", y = "Year") + theme_bw() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0))
+```
