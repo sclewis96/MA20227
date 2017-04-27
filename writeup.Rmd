@@ -2,14 +2,17 @@
 title: "\"Draw me like one of your French girls\""
 subtitle: "A report on (linear) modelling for IMDb score prediction"
 author:
-- Owen Jones, Artem Yurlov, Sam Lewis, Dave Robjohns
+- Owen Jones (olj23), Artem Yurlov (ay544),
+- Samuel Lewis (scl50), Dave Robjohns (dr474)
 date: "Spring 2017"
 output:
   pdf_document: default
+fontsize: 9pt
+margin: 0.7in
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
+knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, cache = TRUE, fig.width = 8, eval=FALSE)
 set.seed(2017)
 ```
 
@@ -19,15 +22,6 @@ In the following report we attempt to produce a mathematical model capable of us
 
 This turns out to be a difficult thing to do; at least, it is difficult to make consistently accurate predictions, owing to the huge amount of variance in the data. As one might expect, film seems to be highly subjective.
 
-After creating an initial model, we make various attempts to:
-
-a. improve its accuracy, by numerically transforming the information we provide it with
-b. simplify it, by only providing it with a subset of the available information and trying to achieve a similar level of performance
-
-Satisfying both of these goals is not an easy task, given that making progress towards one goal generally leads to making sacrifices in the other. The eventual result is something of a compromise, where we have ensured that we are not overfitting our training data but maintain a reasonable degree of accuracy when making predictions.
-
-In the final section we briefly explore film genres and some trends that become apparent in the data when films are separated by genre.
-
 
 ## 1. Data exploration
 
@@ -35,15 +29,9 @@ The data are provided in a data frame, `imdb`, which contains information about 
 
 ```{r}
 load("imdb.rda")
-str(imdb)
 ```
 
 We are ultimately interested in the relationship between the IMDb score (recorded as `score`) and the rest of the information which is available.
-
-```{r}
-summary(imdb$score)
-hist(imdb$score, xlim = c(0, 10), prob = TRUE, breaks = 30)
-```
 
 Looking at the distribution of scores we can see the mean rating of the films in our dataset is between 6 and 7; this is a consequence of our tendency to treat 6 or 7 as an "average" film rating, rather than 5 (which would arguably be more logical from a mathematician's point of view!).
 
@@ -51,7 +39,7 @@ It will also be useful to see the relationship between the score and each of the
 
 *The code used to produce the following plots can be found in Appendix A.*
 
-```{r explorationPlots, echo = FALSE, warning = FALSE}
+```{r, echo = FALSE, warning = FALSE}
 # Load packages for analysis
 library(dplyr)
 library(tidyr)
@@ -464,8 +452,8 @@ AIC(fullmod, rmod, tmod, nullmod)
 
 # Common-sense check that AIC() is doing what we think it is: difference between
 # hand-calculated values for tmod and rmod
-3539*log(summary(msel)$rss[3]/3539) + 2*4 -
-    (3539*log(summary(msel)$rss[9]/3539) + 2*10)
+3539*log(ms_out$rss[3]/3539) + 2*4 -
+    (3539*log(ms_out$rss[9]/3539) + 2*10)
 # Difference between AIC() values
 AIC(tmod) - AIC(rmod)
 # All is well! Only difference is in positive constant in definition of AIC
@@ -481,7 +469,7 @@ anova(rmod, fullmod)
 
 However because the F-test is dependent on the RSS of the models and because `fullmod` overfits the data, the result must be interpreted with caution.
 
-The decision to use 9 predictors in `rmod` was, as mentioned earlier, somewhat empirical. As it turns out, the extra predictor in the best model with 10 predictors was `countryUK` -- indicating that whether a film comes from the UK or not is the most useful country predictor. In this sense, then, the UK is indeed number one.
+The decision to use 9 predictors in `rmod` was, as mentioned earlier, somewhat empirical. As it turns out, the extra predictor in the best model with 10 predictors was `countryUK` -- indicating that whether a film comes from the UK or not is the most useful country predictor. Moreover, the coefficient is positive, so a film from the UK receives a higher score than an otherwise-identical film from any other country. In this sense, then, the UK is indeed number one.
 
 
 #### 3.2 Manually "collapsing" factor predictors
@@ -615,6 +603,26 @@ ggplot(keyvalue3, aes(x = genre, y = year)) +
 ```
 
 Here the recent boom in creation of documentaries is particularly evident - we have seen already that they are cheap to produce, and according to IMDb score they are well-received by viewers. We can also see a gradual but steady decline in the production of Westerns in recent years, perhaps due to directors being wary of controversy around the stereotypes they traditionally portray.
+
+
+## 6. Summary
+
+After creating an initial model, we made various attempts to:
+
+a. improve its accuracy, by numerically transforming the information we provide it with
+b. simplify it, by only providing it with a subset of the available information and trying to achieve a similar level of performance
+
+Satisfying both of these goals was not an easy task, given that making progress towards one goal generally leads to making sacrifices in the other. The eventual result was something of a compromise, where we ensured that we were not overfitting our training data but maintained a reasonable degree of accuracy when making predictions.
+
+We used our model as an artificial, non-partisan "filmgoer" and discovered:
+
+* Some films seem to be treated unfairly by viewers, such as *Justin Bieber: Never Say Never*; but
+* Justin Bieber himself does not seem to be the target of the abuse and has appeared in other films which are rated more fairly
+* The UK, as a country of origin, has the largest positive effect on film score
+* The model we developed produced reasonably good predictions, both in terms of absolute accuracy and having a small prediction interval
+
+In the final section we briefly explored film genres and some trends that become apparent in the data when films are separated by genre -- for example, documentaries have undergone a recent surge in popularity and animations often have larger budgets than films of other genres.
+
 
 
 \pagebreak
