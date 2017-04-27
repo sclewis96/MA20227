@@ -1,18 +1,20 @@
 ---
 title: "\"Draw me like one of your French girls\""
-subtitle: "A report on (linear) modelling for IMDb score prediction"
+subtitle: "A report on (linear) modelling for films"
 author:
+- Group 25
 - Owen Jones (olj23), Artem Yurlov (ay544),
 - Samuel Lewis (scl50), Dave Robjohns (dr474)
 date: "Spring 2017"
 output:
   pdf_document: default
 fontsize: 9pt
-margin: 0.7in
+geometry: margin=0.7in
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, tidy = TRUE, cache = TRUE, fig.width = 8, eval=FALSE)
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE,
+                      fig.hold = TRUE, fig.align = "center", fig.width = 6)
 set.seed(2017)
 ```
 
@@ -74,6 +76,7 @@ grid.arrange(p1, p2, p3, p4, ncol = 2,
                             gp = gpar(fontface = "bold")))
 ```
 
+\pagebreak
 
 #### 1.1 Replacing incorrect values
 
@@ -113,6 +116,8 @@ imdb$budget[959] <- 8.5e+07
 There are also multiple titles which appear more than once in the dataset.
 
 ```{r}
+library(dplyr)
+
 # Create a data frame of the duplicated entries
 dups <- group_by(imdb, title) %>%
     summarise(count = n()) %>%
@@ -248,9 +253,11 @@ m3 <- lm((score^2) ~ sqrt(abs(duration-90)) - 1, imdc)
 # m2 has smallest RSS, so we'll square-root duration
 ```
 
-Now we can compare the performance of linear models fitted on the untransformed and transformed numerical predictors.
+\pagebreak
 
-```{r}
+Now we can compare the performance of linear models fitted on the untransformed and transformed numerical predictors. It turns out that squaring the score and square-rooting some predictors improves the model -- see Appendix C for details.
+
+```{r, echo = FALSE, results = "hide"}
 # Train models on variations of (numeric) data:
 #   s = score^2 as response
 #   t = transformed predictors
@@ -290,9 +297,9 @@ sum((sqrt(tsdf$sqscore) - sqrt(fitted(tslmod)))^2)
 # {squared score} ~ {transformed predictors} is best, as hoped!
 ```
 
-We can also compare the diagnostic plots of the new model with those of the base model.
+We can also compare the diagnostic plots of the new model (below) with those of the base model.
 
-```{r}
+```{r, echo = FALSE}
 par(mfrow = c(2, 2))
 plot(tslmod)
 ```
@@ -301,7 +308,7 @@ The new model shows significant improvements. We still have a slight negative tr
 
 The high-leverage points have also disappeared, although we will see shortly that this is due to the omission of factor predictors in this model.
 
-There are two outliers, particularly evident in the Q-Q plot: the films appearing in rows 1415 and 3475 of `tsdf`.
+There are two outliers, particularly evident in the Q-Q plot: the films appearing in rows 1415 and 3475 of `tsdf` (the data frame of transformed variables).
 
 ```{r}
 tsdf[c(1415, 3477), ]
@@ -312,6 +319,7 @@ tsdf[c(1415, 3477), ]
 Having said that, Mr Bieber does actually appear in another film in the dataset (*Zoolander 2*), and although the model still rates the film more highly than IMDb users do, the residual is much smaller than for *Never Say Never*.
 
 ```{r}
+residuals(tslmod)[which(imdc$title == "Justin Bieber: Never Say Never")]
 residuals(tslmod)[which(imdc$title == "Zoolander 2")]
 ```
 
@@ -321,10 +329,10 @@ Continuing with our bid to improve the model, let's re-fit with the two outlying
 
 ```{r}
 tslmod2 <- lm(sqscore ~ . - title, tsdf, subset = -c(1415, 3477))
-summary(tslmod2)
+summary(tslmod2)$adj.r.squared
 ```
 
-This has a better adjusted $R^2$ than `tslmod`, suggesting it was sensible to remove the outlying points. It also has a better adjusted $R^2$ than `fullmod`, despite the greater number of predictors and therefore information `fullmod` was trained on. This is almost certainly due to the expansion of the factor variables in `fullmod`; we will address this issue in Section 3.
+This has a better adjusted $R^2$ than when the points were included, suggesting it was sensible to remove the outlying points. It also has a better adjusted $R^2$ than `fullmod`, despite the greater number of predictors and therefore information `fullmod` was trained on. This is almost certainly due to the expansion of the factor variables in `fullmod`; we will address this issue in Section 3.
 
 
 #### 2.2 Interactions
@@ -351,7 +359,7 @@ fullmod <- lm(sqscore ~ . - title + uservotessr:userreviewssr +
                   criticreviewssr:uservotessr + criticreviewssr:userreviewssr +
                   grosssr:budget + grosssr:uservotessr,
               fulldf, subset = -c(1415, 3477))
-summary(fullmod)
+summary(fullmod)$adj.r.squared
 ```
 
 The adjusted $R^2$ score is still low, but is significantly better than the first time we fitted the model. Of course, the score a given film receives from a user is highly subjective; for such a difficult task, the adjusted $R^2$ is not terrible. In the following section we will aim to further improve and simplify the model.
@@ -376,7 +384,7 @@ Hence many predictors only apply to a single point. This is virtually the textbo
 
 Given that we currently have over 50 predictors in the model, a "top-down" `step()`-style approach is unlikely to reduce our model to a satisfactory size. Moreover, `step()` keeps staunchly to its numeric-assessment-based approach, and therefore does a poor job of recognising the overfitting endemic in our model and removing the offending predictors.
 
-Therefore we adopt a somewhat more natural approach, founded on the principle of Occam's Razor, whereby we will add predictors to an initially empty model. The `regsubsets()` function in the `leaps` package allows us to find the "best" model (according to Akaike's An Information Criterion, or AIC) of each size. We find such models up to an arbitrary limit of 25 predictors - a generous limit given that we wish to find a "simple" model.
+Therefore we adopt a somewhat more natural approach, founded on the principle of Occam's Razor, whereby we will add predictors to an initially empty model. The `regsubsets()` function in the `leaps` package allows us to find the "best" model (according to Akaike's An Information Criterion, or AIC) of each size. We find such models up to an arbitrary limit of 15 predictors - a generous limit given that we wish to find a "simple" model.
 
 ```{r, warning = FALSE}
 # Set up a data frame with transformed predictors
@@ -391,13 +399,13 @@ imdd <- select(imdc, title, score, year, duration, gross, budget,
     filter(!(title %in% c("Justin Bieber: Never Say Never",
                           "Winged Migration")))
 
-# Let's find the best model of each size up to 25 predictors
+# Let's find the best model of each size up to 15 predictors
 library(leaps)
 modselect <- regsubsets(sqscore ~ . - title + uservotessr:userreviewssr +
                             criticreviewssr:uservotessr +
                             criticreviewssr:userreviewssr +
                             grosssr:budget + grosssr:uservotessr,
-                        imdd, nvmax = 25, really.big = TRUE)
+                        imdd, nvmax = 15, really.big = TRUE)
 ```
 
 We can now calculate the AIC of each of these models according to the formula
@@ -414,11 +422,11 @@ We can subsequently plot these AIC scores against model size.
 n <- nrow(imdd)
 ms_out <- summary(modselect)
 
-plot(1:25, n*log(ms_out$rss/n) + 2*(2:26), type = "o", main = "AIC vs size",
+plot(1:15, n*log(ms_out$rss/n) + 2*(2:16), type = "o", main = "AIC vs size",
      xlab = "Number of predictors (not including intercept)", ylab = "AIC")
 ```
 
-Notice that over this range of sizes, adding predictors consistently reduces (improves) the AIC score of the model -- `step()` would have faltered long before reaching this stage. Therefore this is not a simple case of choosing the model with the smallest AIC score and we shall have to be slightly more subjective in our selection of a smaller model.
+Notice that over this range of sizes, adding predictors consistently reduces (improves) the AIC score of the model -- `step()` would have faltered long before reaching this stage. But the entire point of this exercise is to choose a model with fewer predictors. Therefore this is not a simple case of choosing the model with the smallest AIC score and we shall have to be slightly more subjective in our selection of a smaller model.
 
 We take the approach that two distinct "elbows" can be seen in the plot, at 3 and (less markedly) 9 predictors. After each of these points the rate of improvement of the AIC score of the model with the addition of each extra predictor becomes smaller. Again abiding by Occam's Razor we select these model sizes to study in more detail.
 
@@ -436,7 +444,7 @@ rmod <- lm(sqscore ~ year + durationsr + grosssr + budget + criticreviewssr +
 summary(rmod)
 ```
 
-Notice that this model performs almost as well as `fullmod` did earlier, according to adjusted $R^2$. Additionally the troublesome one-point predictors have all been eliminated. The only factor-level predictor to be included (`ratingPG13`) is also the least significant.
+Notice that this model performs almost as well as `fullmod` did earlier, according to adjusted $R^2$. Additionally the troublesome one-point predictors have all been eliminated. The only factor-level predictor to be included (`ratingPG13`) is also the least significant. Note that since it is the only level from `rating` which is included, we have effectively reduced `rating` to a binary numeric predictor, so we feel the use of `leaps` here (typically not used for factors) is justified.
 
 Let's also inspect the "tiny" model with only 3 predictors.
 
@@ -452,8 +460,8 @@ AIC(fullmod, rmod, tmod, nullmod)
 
 # Common-sense check that AIC() is doing what we think it is: difference between
 # hand-calculated values for tmod and rmod
-3539*log(ms_out$rss[3]/3539) + 2*4 -
-    (3539*log(ms_out$rss[9]/3539) + 2*10)
+n*log(ms_out$rss[3]/n) + 2*4 -
+    (n*log(ms_out$rss[9]/n) + 2*10)
 # Difference between AIC() values
 AIC(tmod) - AIC(rmod)
 # All is well! Only difference is in positive constant in definition of AIC
@@ -474,7 +482,7 @@ The decision to use 9 predictors in `rmod` was, as mentioned earlier, somewhat e
 
 #### 3.2 Manually "collapsing" factor predictors
 
-We can take a different approach to reduce the number of levels in factor predictors which involves manually grouping similar levels - for example, grouping ratings into "kid-friendly" and "not kid-friendly". Details can be found in Appendix C, but seeing as we ultimately did not manage to make significant improvements to the models from Section 3.1 we do not include the results here.
+We can take a different approach to reduce the number of levels in factor predictors which involves manually grouping similar levels - for example, grouping ratings into "kid-friendly" and "not kid-friendly". Details can be found in Appendix D, but seeing as we ultimately did not manage to make significant improvements to the models from Section 3.1 we do not include the results here.
 
 
 ## 4. Assessing the reduced model (`rmod`)
@@ -534,7 +542,7 @@ sqrt(predict(rmod, vertigo, interval = "prediction"))
 sqrt(predict(tmod, vertigo, interval = "prediction"))
 ```
 
-In this specific case, `rmod` is virtually spot-on with a prediction of 8.40, with a 95% prediction interval of (7.28, 9.39). The simplistic `tmod` makes a prediction of 7.72, with a 95% prediction interval of (6.38, 8.86), so `rmod` outperforms `tmod` in terms of both accuracy and certainty in its predicton. Although the accuracy is encouraging, we reiterate that much more test data would be needed to carry out a thorough assessment of the model's performance.
+In this specific case, `rmod` is virtually spot-on with a prediction of 8.40, with a 95% prediction interval of (7.28, 9.39). The simplistic `tmod` makes a prediction of 7.72, with a 95% prediction interval of (6.38, 8.86), so `rmod` outperforms `tmod` in terms of both accuracy and certainty in its prediction. Although the accuracy is encouraging, we reiterate that much more test data would be needed to carry out a thorough assessment of the model's performance.
 
 
 
@@ -544,7 +552,9 @@ Often when selecting a film to watch, the genre is an important consideration. I
 
 We'll create violin plots to show the spread of data and will highlight a couple of points of interest about each plot.
 
-*See Appendix D for the code used to generate the plots in this section.*
+*See Appendix E for the code used to generate the plots in this section.*
+
+\pagebreak
 
 ```{r, echo = FALSE}
 gens <- strsplit(imdc$genres, "[|]")
@@ -579,6 +589,8 @@ ggplot(keyvalue1, aes(x = genre, y = score)) +
 
 There is an obvious trend here: educational films (documentaries, histories, biographies etc.) have higher scores on average. We suggest that the reason is that anything educational, of any format, is valued based on the information that it carries. In case of a film it is also designed to be entertaining or at least aesthetically pleasing, which ideally renders it "less boring" than a lesson and easier to consume than a book. Then the rating of such a film is not a rating of how good the actors are or how good is the plot but instead of how "not boring" it is; and in most cases, it's not boring at all, and therefore scores highly on IMDb.
 
+\pagebreak
+
 #### 5.2 Budget
 
 ```{r, echo = FALSE}
@@ -592,6 +604,7 @@ ggplot(keyvalue2, aes(x = genre, y = budget)) +
 
 Of particular note here are documentaries, which usually have very low budgets. Also notice the proportion of animations which are high-budget, which is relatively high compared to the other genres. This suggests processing power is more expensive than actors - and generalising, that computers are better than humans. We shall make no attempt to disprove the corollary that `rmod` is better than any given film critic.
 
+\pagebreak
 
 #### 5.3 Year
 
@@ -605,7 +618,7 @@ ggplot(keyvalue3, aes(x = genre, y = year)) +
 Here the recent boom in creation of documentaries is particularly evident - we have seen already that they are cheap to produce, and according to IMDb score they are well-received by viewers. We can also see a gradual but steady decline in the production of Westerns in recent years, perhaps due to directors being wary of controversy around the stereotypes they traditionally portray.
 
 
-## 6. Summary
+## 6. Summary of findings
 
 After creating an initial model, we made various attempts to:
 
@@ -621,7 +634,7 @@ We used our model as an artificial, non-partisan "filmgoer" and discovered:
 * The UK, as a country of origin, has the largest positive effect on film score
 * The model we developed produced reasonably good predictions, both in terms of absolute accuracy and having a small prediction interval
 
-In the final section we briefly explored film genres and some trends that become apparent in the data when films are separated by genre -- for example, documentaries have undergone a recent surge in popularity and animations often have larger budgets than films of other genres.
+In the final section we briefly explored film genres and some trends that become apparent in the data when films are separated by genre -- for example, documentaries have undergone a recent surge in popularity and animation as a genre has a large proportion of high-budget films.
 
 
 
@@ -716,7 +729,51 @@ anova(m1, m2, m3)
 
 \pagebreak
 
-## Appendix C: Grouping similar factor levels
+## Appendix C: Variable transformation
+
+```{r}
+# Train models on variations of (numeric) data:
+#   s = score^2 as response
+#   t = transformed predictors
+
+df <- select(imdc, title, score, year, duration, gross, budget,
+             criticreviews, uservotes, userreviews)
+
+tdf <- select(imdc, title, score, year, duration, gross, budget,
+              criticreviews, uservotes, userreviews) %>%
+    transmute(title, score, year, durationsr = sqrt(duration),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews))
+
+sdf <- select(imdc, title, score, year, duration, gross, budget,
+              criticreviews, uservotes, userreviews) %>%
+    mutate(score = score^2) %>% rename(sqscore = score)
+
+tsdf <- select(imdc, title, score, year, duration, gross, budget,
+               criticreviews, uservotes, userreviews) %>%
+    transmute(title, sqscore = (score^2), year, durationsr = sqrt(duration),
+              grosssr = sqrt(gross), budget,
+              criticreviewssr = sqrt(criticreviews),
+              uservotessr = sqrt(uservotes), userreviewssr = sqrt(userreviews))
+
+lmod <- lm(score ~ . - title, df)
+tlmod <- lm(score ~ . - title, tdf)
+slmod <- lm(sqscore ~ . - title, sdf)
+tslmod <- lm(sqscore ~ . - title, tsdf)
+
+# Compare RSS for the models
+sum(residuals(lmod)^2)
+sum((sqrt(sdf$sqscore) - sqrt(fitted(slmod)))^2)
+sum(residuals(tlmod)^2)
+sum((sqrt(tsdf$sqscore) - sqrt(fitted(tslmod)))^2)
+
+# {squared score} ~ {transformed predictors} is best, as hoped!
+```
+
+\pagebreak
+
+## Appendix D: Grouping similar factor levels
 
 ```{r, eval = FALSE}
 # Let's move on to our factor variables...
@@ -796,7 +853,7 @@ AIC(fmod, hmod, nmod)
 
 \pagebreak
 
-## Appendix D: Plots in Section 5
+## Appendix E: Plots in Section 5
 
 ```{r, eval = FALSE}
 gens <- strsplit(imdc$genres, "[|]")
